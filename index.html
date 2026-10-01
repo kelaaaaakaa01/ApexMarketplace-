@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#FF4757">
+  <title>💥 APEX ft RIXX MARKET</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div id="overlay" class="overlay hidden"></div>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">💥 APEX ft RIXX</div>
+      <button class="sidebar-close" id="sidebarClose">✕</button>
+    </div>
+
+    <div class="sidebar-user" id="sidebarUser">
+      <div class="avatar" id="sideAvatar">?</div>
+      <div class="side-user-info">
+        <div id="sideName">Guest</div>
+        <button id="sideAuthBtn" class="side-auth-btn">LOGIN</button>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a class="side-link active" data-page="home">🏠 <span>Home</span></a>
+      <a class="side-link" data-page="feed">📢 <span>Feed Jualan</span></a>
+      <a class="side-link" data-page="post">✏️ <span>Post Jualan</span></a>
+      <a class="side-link" data-page="chats">💬 <span>Chat <em id="sidebarChatBadge" class="badge hidden">0</em></span></a>
+      <a class="side-link" data-page="channels">📻 <span>Saluran</span></a>
+      <a class="side-link" data-page="profile">👤 <span>Profil</span></a>
+    </nav>
+
+    <div class="sidebar-wa">
+      <div class="wa-label">📞 Developer</div>
+      <a href="https://wa.me/6283181437266" target="_blank" class="wa-btn wa-1">💬 WA Dev 1</a>
+      <a href="https://wa.me/6283185679623" target="_blank" class="wa-btn wa-2">💬 WA Dev 2</a>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <header class="topbar">
+      <button id="menuBtn" class="menu-btn">☰</button>
+      <h1 class="topbar-logo">💥 APEX ft RIXX</h1>
+      <div class="topbar-right">
+        <button id="musicToggle" class="icon-top" title="Music">🔇</button>
+        <button id="searchToggle" class="icon-top">🔍</button>
+        <button id="topAuthBtn" class="btn-login-top">LOGIN</button>
+      </div>
+    </header>
+
+    <div class="search-bar hidden" id="searchBar">
+      <input type="text" id="searchInput" placeholder="Cari barang / user...">
+      <button id="searchClose" class="icon-top">✕</button>
+    </div>
+
+    <!-- HOME -->
+    <section class="page active" id="page-home">
+      <div class="story-row-wrap">
+        <div class="story-row" id="storyRow">
+          <div class="story-item story-add" id="addStoryBtn">
+            <div class="story-ring story-ring-add">＋</div>
+            <span>Story</span>
+          </div>
+        </div>
+      </div>
+      <div class="hero">
+        <h2 class="hero-title">APEX ft RIXX MARKET 💥</h2>
+        <p class="hero-sub">Marketplace + Chat + Story + Telepon!</p>
+        <button class="btn-pop hero-btn" data-page="feed">🚀 Lihat Barang</button>
+      </div>
+      <h3 class="section-title">🔥 Trending</h3>
+      <div class="feed-grid" id="homeFeed"><p style="padding:20px">Memuat...</p></div>
+    </section>
+
+    <!-- FEED -->
+    <section class="page" id="page-feed">
+      <h2 class="section-title">📢 Semua Barang</h2>
+      <div class="feed-grid" id="feedList"><p style="padding:20px">Memuat...</p></div>
+    </section>
+
+    <!-- POST -->
+    <section class="page" id="page-post">
+      <h2 class="section-title">✏️ Buat Post Jualan</h2>
+      <form id="postForm" class="form-card">
+        <input type="text" id="postTitle" placeholder="Judul barang..." required>
+        <textarea id="postDesc" placeholder="Deskripsi..." required></textarea>
+        <input type="number" id="postPrice" placeholder="Harga (Rp)" required min="0">
+        <input type="text" id="postImage" placeholder="URL Gambar (opsional)">
+        <button type="submit" class="btn-pop">🚀 POSTING!</button>
+      </form>
+      <h3 class="section-title" style="margin-top:30px">📊 Barang Gw</h3>
+      <div class="feed-grid" id="myPosts"><p style="padding:20px">Login buat lihat...</p></div>
+    </section>
+
+    <!-- CHATS -->
+    <section class="page" id="page-chats">
+      <div class="chats-header">
+        <h2 class="section-title" style="margin:0">💬 Chat</h2>
+        <div class="chats-actions">
+          <button class="icon-top" id="newGroupBtn" title="Bikin Grup">👥+</button>
+        </div>
+      </div>
+
+      <div class="chat-tabs">
+        <button class="chat-tab active" data-chattab="all">💬 Semua</button>
+        <button class="chat-tab" data-chattab="dm">👤 Chat</button>
+        <button class="chat-tab" data-chattab="group">👥 Grup</button>
+        <button class="chat-tab" data-chattab="users">📇 User</button>
+      </div>
+
+      <div class="wa-chat-list" id="waChatList">
+        <p style="padding:20px;text-align:center;opacity:0.6">Login dulu...</p>
+      </div>
+    </section>
+
+    <!-- CHANNELS -->
+    <section class="page" id="page-channels">
+      <div class="chats-header">
+        <h2 class="section-title" style="margin:0">📻 Saluran</h2>
+        <div class="chats-actions">
+          <button class="icon-top" id="newChannelBtn" title="Bikin Saluran">📻+</button>
+        </div>
+      </div>
+      <p class="channel-info">📢 Saluran = broadcast satu arah. Cuma admin yang bisa posting.</p>
+      <h3 class="section-title" style="font-size:1.3rem">📋 Saluran Gw</h3>
+      <div class="channel-list" id="channelList">
+        <p style="padding:20px;text-align:center;opacity:0.6">Belum ada saluran...</p>
+      </div>
+      <h3 class="section-title" style="margin-top:30px;font-size:1.3rem">➕ Gabung Saluran</h3>
+      <div class="join-channel-box">
+        <input type="text" id="joinChannelId" placeholder="Paste link / ID saluran...">
+        <button class="btn-pop" id="joinChannelBtn">GABUNG</button>
+      </div>
+    </section>
+
+    <!-- PROFILE -->
+    <section class="page" id="page-profile">
+      <h2 class="section-title">👤 Profil</h2>
+      <div class="profile-card" id="profileInfo"><p>Login dulu...</p></div>
+      <div class="wa-card" style="margin-top:30px">
+        <h3>📞 Kontak Developer</h3>
+        <div class="wa-buttons">
+          <a href="https://wa.me/6283181437266" target="_blank" class="wa-btn wa-1">💬 WA Dev 1<br><small>+62 831-8143-7266</small></a>
+          <a href="https://wa.me/6283185679623" target="_blank" class="wa-btn wa-2">💬 WA Dev 2<br><small>+62 831-8567-9623</small></a>
+        </div>
+      </div>
+    </section>
+
+    <!-- AUTH -->
+    <section class="page" id="page-auth">
+      <h2 class="section-title">🔐 Masuk / Daftar</h2>
+      <div class="form-card" style="max-width:420px;">
+        <div class="auth-tabs">
+          <button type="button" class="auth-tab active" data-authtab="login">LOGIN</button>
+          <button type="button" class="auth-tab" data-authtab="register">DAFTAR</button>
+        </div>
+        <input type="email" id="authEmail" placeholder="Email">
+        <input type="password" id="authPassword" placeholder="Password (min 6)">
+        <input type="text" id="authUsername" placeholder="Username (buat daftar)" class="hidden">
+        <button type="button" id="doAuth" class="btn-pop" style="width:100%">LOGIN</button>
+        <p style="text-align:center;font-size:0.85rem;margin-top:10px">
+          Belum punya akun? <a href="#" id="switchAuth" style="color:#3B82F6;font-weight:700">Daftar</a>
+        </p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- FLOATING WA BUTTON -->
+  <button id="waFloatBtn" class="wa-float">💬</button>
+
+  <!-- POPUP DEVELOPER -->
+  <div id="waPopup" class="wa-popup hidden">
+    <div class="wa-popup-content">
+      <div class="wa-popup-header">
+        <h3>📞 Hubungi Developer</h3>
+        <button id="waPopupClose" class="wa-popup-close">✕</button>
+      </div>
+      <a href="https://wa.me/6283181437266?text=Halo%20Dev%201%20APEX%20ft%20RIXX" target="_blank" class="wa-dev-btn">
+        <div class="wa-dev-icon wa-1">💬</div>
+        <div class="wa-dev-info">
+          <b>Developer 1</b>
+          <small>+62 831-8143-7266</small>
+        </div>
+      </a>
+      <a href="https://wa.me/6283185679623?text=Halo%20Dev%202%20APEX%20ft%20RIXX" target="_blank" class="wa-dev-btn">
+        <div class="wa-dev-icon wa-2">💬</div>
+        <div class="wa-dev-info">
+          <b>Developer 2</b>
+          <small>+62 831-8567-9623</small>
+        </div>
+      </a>
+    </div>
+  </div>
+
+  <!-- FULL CHAT -->
+  <div id="fullChat" class="full-chat hidden">
+    <div class="fc-header">
+      <button class="fc-back" id="fcBack">←</button>
+      <div class="fc-avatar-wrap" id="fcAvatarWrap"></div>
+      <div class="fc-info">
+        <div class="fc-name" id="fcName">Nama</div>
+        <div class="fc-status" id="fcStatus">Online</div>
+      </div>
+      <button class="fc-call" id="fcCallBtn" title="Telepon">📞</button>
+      <button class="fc-menu" id="fcMenu">⋮</button>
+    </div>
+
+    <div id="fcMenuDropdown" class="fc-menu-dropdown hidden">
+      <button id="menuViewProfile">👤 Lihat Profil</button>
+      <button id="menuViewMembers" class="group-only">👥 Lihat Anggota</button>
+      <button id="menuEditGroup" class="group-only admin-only">⚙️ Set Profil Grup</button>
+      <button id="menuCopyLink" class="group-only admin-only">🔗 Copy Link</button>
+      <button id="menuCopyLinkChannel" class="channel-only admin-only">🔗 Copy Link Saluran</button>
+      <button id="menuLeave" class="group-only channel-only">🚪 Keluar</button>
+    </div>
+
+    <div class="fc-messages" id="fcMessages">
+      <p style="text-align:center;opacity:0.6;padding:20px">Memuat...</p>
+    </div>
+
+    <div id="fcReplyBar" class="reply-bar hidden">
+      <div class="reply-content">
+        <b id="fcReplyName"></b>
+        <span id="fcReplyText"></span>
+      </div>
+      <button id="fcReplyClose" class="icon-btn">✕</button>
+    </div>
+
+    <form id="fcChatForm" class="chat-input">
+      <button type="button" id="fcImgBtn" class="icon-btn">🖼️</button>
+      <button type="button" id="fcFileBtn" class="icon-btn">📎</button>
+      <button type="button" id="fcVnBtn" class="icon-btn">🎤</button>
+      <input type="text" id="fcChatInput" placeholder="Tulis pesan..." autocomplete="off">
+      <button type="submit" class="btn-pop btn-send">➤</button>
+      <input type="file" id="fcImgInput" accept="image/*" hidden>
+      <input type="file" id="fcFileInput" hidden>
+    </form>
+
+    <div id="fcRecordingBar" class="recording-bar hidden">
+      <span class="dot"></span> Merekam... <span id="fcRecTime">0:00</span>
+      <button type="button" id="fcStopRec" class="btn-pop">STOP</button>
+      <button type="button" id="fcCancelRec" class="btn-pop btn-cancel">BATAL</button>
+    </div>
+
+    <div id="fcUploadBar" class="upload-bar hidden">
+      <div id="fcUploadFill" class="upload-fill"></div>
+      <span id="fcUploadText">Uploading...</span>
+    </div>
+  </div>
+
+  <!-- MODAL PROFIL USER -->
+  <div id="userProfileModal" class="modal hidden">
+    <div class="modal-content" style="max-width:340px;text-align:center;">
+      <div id="userProfileContent">Loading...</div>
+      <button class="btn-pop btn-cancel" id="closeUserProfile" style="margin-top:15px;width:100%">TUTUP</button>
+    </div>
+  </div>
+
+  <!-- MODAL EDIT PROFIL -->
+  <div id="editProfileModal" class="modal hidden">
+    <div class="modal-content" style="max-width:380px;">
+      <h2>⚙️ EDIT PROFIL</h2>
+      <div style="text-align:center;margin-bottom:10px;">
+        <div id="editAvatarPreview" class="avatar big" style="margin:0 auto 10px;background:#3B82F6">?</div>
+        <input type="file" id="editAvatarInput" accept="image/*" style="display:none">
+        <button class="btn-pop" id="pickAvatarBtn" style="font-size:0.9rem;padding:6px 12px">📷 GANTI FOTO</button>
+      </div>
+      <input type="text" id="editUsername" placeholder="Username">
+      <textarea id="editBio" placeholder="Bio (opsional)" style="min-height:60px;"></textarea>
+      <button class="btn-pop" id="saveProfileBtn">💾 SIMPAN</button>
+      <button class="btn-pop btn-cancel" id="closeEditProfile">BATAL</button>
+    </div>
+  </div>
+
+  <!-- MODAL BIKIN GRUP -->
+  <div id="groupModal" class="modal hidden">
+    <div class="modal-content">
+      <h2>👥 BIKIN GRUP</h2>
+      <input type="text" id="groupName" placeholder="Nama Grup">
+      <div class="member-picker" id="memberPicker"></div>
+      <button class="btn-pop" id="createGroupBtn">BIKIN GRUP</button>
+      <button class="btn-pop btn-cancel" id="closeGroupModal">BATAL</button>
+    </div>
+  </div>
+
+  <!-- MODAL EDIT GRUP -->
+  <div id="editGroupModal" class="modal hidden">
+    <div class="modal-content">
+      <h2>⚙️ SET GRUP</h2>
+      <div style="text-align:center;margin-bottom:10px;">
+        <div id="editGroupAvatar" class="avatar big" style="margin:0 auto 10px;background:#A855F7">👥</div>
+        <input type="file" id="editGroupAvatarInput" accept="image/*" style="display:none">
+        <button class="btn-pop" id="pickGroupAvatarBtn" style="font-size:0.9rem;padding:6px 12px">📷 GANTI FOTO</button>
+      </div>
+      <input type="text" id="editGroupName" placeholder="Nama Grup">
+      <textarea id="editGroupDesc" placeholder="Deskripsi grup" style="min-height:60px;"></textarea>
+      <button class="btn-pop" id="saveGroupBtn">💾 SIMPAN</button>
+      <button class="btn-pop btn-cancel" id="closeEditGroup">BATAL</button>
+    </div>
+  </div>
+
+  <!-- MODAL ANGGOTA -->
+  <div id="membersModal" class="modal hidden">
+    <div class="modal-content" style="max-width:380px;">
+      <h2>👥 ANGGOTA</h2>
+      <div id="membersList" class="members-list"></div>
+      <button class="btn-pop btn-cancel" id="closeMembers" style="width:100%;margin-top:10px">TUTUP</button>
+    </div>
+  </div>
+
+  <!-- MODAL BIKIN SALURAN -->
+  <div id="channelModal" class="modal hidden">
+    <div class="modal-content">
+      <h2>📻 BIKIN SALURAN</h2>
+      <input type="text" id="channelName" placeholder="Nama Saluran">
+      <input type="text" id="channelDesc" placeholder="Deskripsi (opsional)">
+      <button class="btn-pop" id="createChannelBtn">BIKIN</button>
+      <button class="btn-pop btn-cancel" id="closeChannelModal">BATAL</button>
+    </div>
+  </div>
+
+  <!-- MODAL BUAT STORY -->
+  <div id="storyModal" class="modal hidden">
+    <div class="modal-content">
+      <h2>📸 BUAT STORY</h2>
+      <p style="font-size:0.85rem;text-align:center">Hilang dalam 24 jam</p>
+      <input type="file" id="storyInput" accept="image/*" style="display:none">
+      <button class="btn-pop" id="pickStoryImg" style="width:100%">📷 PILIH GAMBAR</button>
+      <div id="storyPreview" style="text-align:center;margin:10px 0;"></div>
+      <input type="text" id="storyCaption" placeholder="Caption (opsional)">
+      <button class="btn-pop" id="postStoryBtn" style="width:100%">📤 POST</button>
+      <button class="btn-pop btn-cancel" id="closeStoryModal" style="width:100%">BATAL</button>
+    </div>
+  </div>
+
+  <!-- STORY VIEWER -->
+  <div id="storyViewer" class="story-viewer hidden">
+    <div class="sv-progress"></div>
+    <div class="sv-header">
+      <div class="avatar small" id="svAvatar">?</div>
+      <div style="flex:1">
+        <div id="svName" style="font-weight:700">User</div>
+        <div id="svTime" style="font-size:0.75rem;opacity:0.8">Baru</div>
+      </div>
+      <button id="svClose" style="background:none;border:none;color:white;font-size:1.5rem;cursor:pointer">✕</button>
+    </div>
+    <img id="svImg" src="" alt="">
+    <div id="svCaption"></div>
+    <button class="sv-nav sv-prev" id="svPrev">‹</button>
+    <button class="sv-nav sv-next" id="svNext">›</button>
+  </div>
+
+  <!-- MODAL TELEPON MASUK -->
+  <div id="incomingCallModal" class="modal hidden">
+    <div class="modal-content call-modal">
+      <div class="call-avatar" id="incomingAvatar">?</div>
+      <h2 id="incomingName">Seseorang</h2>
+      <p style="text-align:center;font-size:0.9rem;opacity:0.8">📞 Panggilan masuk...</p>
+      <div class="call-actions">
+        <button class="btn-call-accept" id="acceptCallBtn">📞</button>
+        <button class="btn-call-decline" id="declineCallBtn">✕</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FULL SCREEN CALL -->
+  <div id="callScreen" class="call-screen hidden">
+    <div class="call-info">
+      <div class="call-avatar big" id="callAvatar">?</div>
+      <h2 id="callName">Nama</h2>
+      <p id="callStatus">Menghubungkan...</p>
+      <p id="callDuration"></p>
+    </div>
+    <div class="call-buttons">
+      <button class="btn-call-mute" id="muteBtn" title="Mute">🎤</button>
+      <button class="btn-call-end" id="endCallBtn" title="Akhiri">📞</button>
+      <button class="btn-call-speaker" id="speakerBtn" title="Speaker">🔊</button>
+    </div>
+    <audio id="remoteAudio" autoplay></audio>
+  </div>
+
+  <!-- BACKGROUND MUSIC -->
+<audio id="bgMusic" loop preload="auto">
+  <source src="https://www.image2url.com/r2/default/audio/1790875471897-eda303c1-dfb9-4d8a-924e-4d7e1b9d0e59.mp3" type="audio/mpeg">
+</audio>
+
+<div id="toast" class="toast hidden"></div>
+
+<!-- MUSIC PROMPT -->
+<div id="musicPrompt" class="music-prompt hidden">
+  <div class="music-prompt-content">
+    <span>🎵 Mau play music?</span>
+    <button id="musicPromptYes" class="btn-pop" style="font-size:0.9rem;padding:6px 14px">YA</button>
+    <button id="musicPromptNo" class="btn-pop btn-cancel" style="font-size:0.9rem;padding:6px 14px">NANTI</button>
+  </div>
+</div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
