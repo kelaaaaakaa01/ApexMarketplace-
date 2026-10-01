@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🛡️ ADMIN PANEL — APEX ft RIXX</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+
+  <!-- LOGIN -->
+  <div id="loginScreen" class="login-screen">
+    <div class="login-box">
+      <h1>🛡️ ADMIN PANEL</h1>
+      <p style="text-align:center;font-size:0.9rem;margin-bottom:15px">Login pakai akun admin lu</p>
+      <input type="email" id="adminEmail" placeholder="Email admin">
+      <input type="password" id="adminPassword" placeholder="Password admin">
+      <button id="adminLoginBtn" class="btn-admin">🔓 LOGIN</button>
+      <p id="loginMsg" style="text-align:center;font-size:0.85rem;margin-top:10px"></p>
+    </div>
+  </div>
+
+  <!-- PANEL -->
+  <div id="adminPanel" class="admin-panel hidden">
+
+    <header class="admin-header">
+      <h1>🛡️ ADMIN PANEL</h1>
+      <div class="header-right">
+        <span id="adminName">-</span>
+        <button id="logoutBtn" class="btn-logout">LOGOUT</button>
+      </div>
+    </header>
+
+    <!-- STATS -->
+    <div class="admin-stats">
+      <div class="admin-stat">
+        <div class="as-icon">👥</div>
+        <div class="as-num" id="aTotalUsers">-</div>
+        <div class="as-label">Total User</div>
+      </div>
+      <div class="admin-stat">
+        <div class="as-icon">📦</div>
+        <div class="as-num" id="aTotalPosts">-</div>
+        <div class="as-label">Total Post</div>
+      </div>
+      <div class="admin-stat">
+        <div class="as-icon">🚫</div>
+        <div class="as-num" id="aTotalBanned">-</div>
+        <div class="as-label">HWID Banned</div>
+      </div>
+      <div class="admin-stat">
+        <div class="as-icon">⭐</div>
+        <div class="as-num" id="aAvgRating">-</div>
+        <div class="as-label">Rating Web</div>
+      </div>
+    </div>
+
+    <!-- TABS -->
+    <div class="admin-tabs">
+      <button class="admin-tab active" data-tab="users">👥 USERS + HWID</button>
+      <button class="admin-tab" data-tab="ban">🚫 BAN HWID</button>
+      <button class="admin-tab" data-tab="unban">✅ UNBAN HWID</button>
+      <button class="admin-tab" data-tab="site">🔒 TUTUP WEBSITE</button>
+    </div>
+
+    <!-- TAB: USERS + HWID -->
+    <section class="admin-tab-content active" id="tab-users">
+      <h2>👥 Daftar User + HWID</h2>
+      <p style="font-size:0.9rem;margin-bottom:15px">
+        Semua HWID user yang pernah daftar. Klik <b>🚫 BAN</b> buat langsung ban device.
+      </p>
+      <input type="text" id="userSearch" placeholder="🔍 Cari username / email / HWID..." style="width:100%;padding:12px;border:3px solid #000;border-radius:10px;font-family:'Comic Neue';font-size:1rem;margin-bottom:15px;background:white;color:black;">
+      <div id="usersList" class="users-list">
+        <p style="padding:20px;text-align:center;opacity:0.6">Memuat...</p>
+      </div>
+    </section>
+
+    <!-- TAB: BAN -->
+    <section class="admin-tab-content" id="tab-ban">
+      <h2>🚫 Ban HWID Manual</h2>
+      <p style="font-size:0.9rem;margin-bottom:15px">
+        Ban device dengan HWID tertentu. Atau langsung dari tab USERS.
+      </p>
+      <div class="admin-form">
+        <label>HWID Device:</label>
+        <input type="text" id="banHwid" placeholder="HWID-XXXXXXXXXXXXXXXX">
+        <label>Alasan Ban:</label>
+        <textarea id="banReason" placeholder="Contoh: Spam iklan, jual barang ilegal, dll"></textarea>
+        <label>Nama/Username User (opsional):</label>
+        <input type="text" id="banUsername" placeholder="Username yang di-ban">
+        <label>Device Info (opsional):</label>
+        <input type="text" id="banDeviceInfo" placeholder="Android/iPhone/etc">
+        <button id="doBanBtn" class="btn-admin btn-danger">🚫 BAN SEKARANG</button>
+      </div>
+    </section>
+
+    <!-- TAB: UNBAN -->
+    <section class="admin-tab-content" id="tab-unban">
+      <h2>✅ Unban HWID</h2>
+      <p style="font-size:0.9rem;margin-bottom:15px">
+        Hapus ban HWID biar device user bisa akses web lagi.
+      </p>
+      <div class="admin-form">
+        <label>Cari HWID / Nama User:</label>
+        <input type="text" id="unbanSearch" placeholder="Ketik HWID atau nama user...">
+        <div id="bannedList" class="banned-list">
+          <p style="padding:20px;text-align:center;opacity:0.6">Memuat...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB: SITE CLOSED -->
+    <section class="admin-tab-content" id="tab-site">
+      <h2>🔒 Tutup Website (Global)</h2>
+      <p style="font-size:0.9rem;margin-bottom:15px">
+        Pas user masuk web, muncul <b>popup full screen</b> yang nutup SEMUA paket/barang/chat. Cuma bisa baca pesan dari lu.
+      </p>
+
+      <div class="admin-form">
+        <label>Status Website:</label>
+        <select id="siteStatus">
+          <option value="open">✅ TERBUKA (Normal)</option>
+          <option value="closed">🔒 DITUTUP (Muncul popup)</option>
+        </select>
+
+        <label>Judul Popup:</label>
+        <input type="text" id="siteTitle" placeholder="Contoh: ⚠️ MAINTENANCE">
+
+        <label>Pesan Custom (muncul ke semua user):</label>
+        <textarea id="siteMessage" placeholder="Contoh: Website lagi maintenance, balik lagi jam 10 pagi ya!"></textarea>
+
+        <label>WA Kontak (opsional — muncul tombol WA):</label>
+        <input type="text" id="siteWa" placeholder="6283181437266">
+
+        <button id="saveSiteBtn" class="btn-admin btn-danger">💾 SIMPAN & TERAPKAN</button>
+      </div>
+
+      <div style="margin-top:20px;padding:15px;background:#2a2a2a;border:3px solid #FFD93D;border-radius:12px;">
+        <p style="font-family:'Bangers';font-size:1.2rem;color:#FFD93D;margin-bottom:5px;">📌 PREVIEW POPUP</p>
+        <div id="sitePreview" style="color:#FFFBF0;font-size:0.9rem;">
+          <b id="previewTitle">⚠️ MAINTENANCE</b><br>
+          <span id="previewMsg">Website lagi maintenance...</span>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <div id="toastAdmin" class="toast-admin hidden"></div>
+
+  <script type="module" src="admin.js"></script>
+</body>
+</html>
