@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#FF4757">
+  <title>💥 KOMIK MART — Jualan Gaya Komik!</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ============ APP SHELL ============ -->
+  <div class="app-shell">
+
+    <!-- SIDEBAR (Desktop) -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-logo">💥 KOMIK MART</div>
+      <nav class="sidebar-nav">
+        <a class="side-link active" data-page="home">🏠 <span>Home</span></a>
+        <a class="side-link" data-page="feed">📢 <span>Feed</span></a>
+        <a class="side-link" data-page="post">✏️ <span>Post Jualan</span></a>
+        <a class="side-link" data-page="dm">💬 <span>Chat</span></a>
+        <a class="side-link" data-page="profile">👤 <span>Profil</span></a>
+      </nav>
+      <div class="sidebar-user" id="sidebarUser">
+        <div class="avatar" id="sideAvatar">?</div>
+        <div class="side-user-info">
+          <div id="sideName">Guest</div>
+          <button id="sideAuthBtn" class="side-auth-btn">LOGIN</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="main">
+
+      <!-- TOPBAR (mobile) -->
+      <header class="topbar">
+        <h1 class="topbar-logo">💥 KOMIK MART</h1>
+        <div class="topbar-right">
+          <button id="searchToggle" class="icon-top">🔍</button>
+          <button id="topAuthBtn" class="top-avatar" title="Login">?</button>
+        </div>
+      </header>
+
+      <!-- SEARCH OVERLAY -->
+      <div class="search-bar hidden" id="searchBar">
+        <input type="text" id="searchInput" placeholder="Cari barang atau user...">
+        <button id="searchClose" class="icon-top">✕</button>
+      </div>
+
+      <!-- ============ PAGE: HOME ============ -->
+      <section class="page active" id="page-home">
+        <div class="hero">
+          <h2 class="hero-title">Jualan Gaya Komik! 💥</h2>
+          <p class="hero-sub">Marketplace paling kece sedunia. Chat langsung, kirim gambar, VN, file — semua bisa!</p>
+          <button class="btn-pop hero-btn" data-page="feed">🚀 Lihat Barang</button>
+        </div>
+
+        <h3 class="section-title">🔥 Trending Sekarang</h3>
+        <div class="feed-grid" id="homeFeed">
+          <p style="padding:20px">Memuat...</p>
+        </div>
+      </section>
+
+      <!-- ============ PAGE: FEED ============ -->
+      <section class="page" id="page-feed">
+        <h2 class="section-title">📢 Semua Barang</h2>
+        <div class="feed-grid" id="feedList">
+          <p style="padding:20px">Memuat...</p>
+        </div>
+      </section>
+
+      <!-- ============ PAGE: POST ============ -->
+      <section class="page" id="page-post">
+        <h2 class="section-title">✏️ Buat Post Jualan</h2>
+        <form id="postForm" class="form-card">
+          <input type="text" id="postTitle" placeholder="Judul barang..." required>
+          <textarea id="postDesc" placeholder="Deskripsi..." required></textarea>
+          <input type="number" id="postPrice" placeholder="Harga (Rp)" required min="0">
+          <input type="text" id="postImage" placeholder="URL Gambar (opsional)">
+          <button type="submit" class="btn-pop">🚀 POSTING!</button>
+        </form>
+
+        <h3 class="section-title" style="margin-top:30px">📊 Barang Gw</h3>
+        <div class="feed-grid" id="myPosts">
+          <p style="padding:20px">Login buat lihat barang lu...</p>
+        </div>
+      </section>
+
+      <!-- ============ PAGE: DM ============ -->
+      <section class="page" id="page-dm">
+        <h2 class="section-title">💬 Chat</h2>
+        <div class="dm-container">
+          <div id="chatList" class="chat-list">
+            <p style="padding:10px">Login dulu...</p>
+          </div>
+          <div class="chat-box">
+            <div id="chatHeader" class="chat-header">
+              <span>Pilih chat dulu...</span>
+            </div>
+            <div id="chatMessages" class="chat-messages">
+              <p style="text-align:center;opacity:0.6;padding:20px">Belum ada chat dipilih</p>
+            </div>
+
+            <div id="attachPreview" class="attach-preview hidden"></div>
+
+            <div id="replyBar" class="reply-bar hidden">
+              <div class="reply-content">
+                <b id="replyName"></b>
+                <span id="replyText"></span>
+              </div>
+              <button id="replyClose" class="icon-btn">✕</button>
+            </div>
+
+            <form id="chatForm" class="chat-input">
+              <button type="button" id="imgBtn" class="icon-btn" title="Gambar">🖼️</button>
+              <button type="button" id="fileBtn" class="icon-btn" title="File">📎</button>
+              <button type="button" id="vnBtn" class="icon-btn" title="VN">🎤</button>
+              <input type="text" id="chatInput" placeholder="Tulis pesan..." autocomplete="off">
+              <button type="submit" class="btn-pop btn-send">➤</button>
+
+              <input type="file" id="imgInput" accept="image/*" hidden>
+              <input type="file" id="fileInput" hidden>
+            </form>
+
+            <div id="recordingBar" class="recording-bar hidden">
+              <span class="dot"></span> Merekam... <span id="recTime">0:00</span>
+              <button type="button" id="stopRec" class="btn-pop">STOP</button>
+              <button type="button" id="cancelRec" class="btn-pop btn-cancel">BATAL</button>
+            </div>
+
+            <div id="uploadBar" class="upload-bar hidden">
+              <div id="uploadFill" class="upload-fill"></div>
+              <span id="uploadText">Uploading...</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ PAGE: PROFILE ============ -->
+      <section class="page" id="page-profile">
+        <h2 class="section-title">👤 Profil</h2>
+        <div class="profile-card" id="profileInfo">
+          <p>Login dulu...</p>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- BOTTOM NAV (Mobile) -->
+    <nav class="bottom-nav">
+      <a class="bn-link active" data-page="home">🏠<span>Home</span></a>
+      <a class="bn-link" data-page="feed">📢<span>Feed</span></a>
+      <a class="bn-link" data-page="post">✏️<span>Jual</span></a>
+      <a class="bn-link" data-page="dm">💬<span>Chat</span><em id="dmBadge" class="badge hidden">0</em></a>
+      <a class="bn-link" data-page="profile">👤<span>Profil</span></a>
+    </nav>
+
+  </div>
+
+  <!-- ============ LOGIN MODAL ============ -->
+  <div id="loginModal" class="modal hidden">
+    <div class="modal-content">
+      <h2>LOGIN / DAFTAR</h2>
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-auth="login">LOGIN</button>
+        <button class="auth-tab" data-auth="register">DAFTAR</button>
+      </div>
+      <input type="email" id="email" placeholder="Email" autocomplete="email">
+      <input type="password" id="password" placeholder="Password (min 6)" autocomplete="current-password">
+      <input type="text" id="username" placeholder="Username (buat daftar)" class="hidden" id="usernameWrap">
+      <button id="doAuth" class="btn-pop">LOGIN</button>
+      <button id="closeModal" class="btn-pop btn-cancel">BATAL</button>
+    </div>
+  </div>
+
+  <!-- ============ TOAST ============ -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
