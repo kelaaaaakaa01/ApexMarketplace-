@@ -13,7 +13,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 // ⚠️ GANTI dengan UID admin lu
-const ADMIN_UIDS = ['ISI_UID_ADMIN_LU_DISINI'];
+const ADMIN_UIDS = ['56543456aphex'];
 
 let currentAdmin = null;
 
