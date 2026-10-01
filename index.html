@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>💥 KOMIK MART — Jualan Gaya Komik!</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="header">
+    <h1 class="logo">💥 KOMIK MART 💥</h1>
+    <div class="user-info">
+      <span id="userName">Guest</span>
+      <button id="loginBtn" class="btn-pop">LOGIN</button>
+      <button id="logoutBtn" class="btn-pop hidden">LOGOUT</button>
+    </div>
+  </header>
+
+  <!-- NAV -->
+  <nav class="nav">
+    <button class="nav-btn active" data-tab="feed">📢 FEED</button>
+    <button class="nav-btn" data-tab="post">✏️ POST JUALAN</button>
+    <button class="nav-btn" data-tab="dm">💬 DM / CHAT</button>
+    <button class="nav-btn" data-tab="profile">👤 PROFILE</button>
+  </nav>
+
+  <!-- FEED -->
+  <section id="feed" class="tab active">
+    <h2 class="section-title">🔥 Postingan Terbaru</h2>
+    <div id="feedList" class="feed-grid">
+      <p style="padding:20px">Memuat postingan...</p>
+    </div>
+  </section>
+
+  <!-- POST -->
+  <section id="post" class="tab">
+    <h2 class="section-title">✏️ Buat Post Jualan</h2>
+    <form id="postForm" class="form-card">
+      <input type="text" id="postTitle" placeholder="Judul barang..." required>
+      <textarea id="postDesc" placeholder="Deskripsi..." required></textarea>
+      <input type="number" id="postPrice" placeholder="Harga (Rp)" required min="0">
+      <input type="text" id="postImage" placeholder="URL Gambar (opsional)">
+      <button type="submit" class="btn-pop">🚀 POSTING!</button>
+    </form>
+  </section>
+
+  <!-- DM -->
+  <section id="dm" class="tab">
+    <h2 class="section-title">💬 Chat / DM</h2>
+    <div class="dm-container">
+      <div id="chatList" class="chat-list">
+        <p style="padding:10px">Login dulu untuk lihat user...</p>
+      </div>
+      <div class="chat-box">
+        <div id="chatHeader" class="chat-header">Pilih chat dulu...</div>
+        <div id="chatMessages" class="chat-messages">
+          <p style="text-align:center;opacity:0.6;padding:20px">Belum ada chat dipilih</p>
+        </div>
+
+        <div id="attachPreview" class="attach-preview hidden"></div>
+
+        <form id="chatForm" class="chat-input">
+          <button type="button" id="imgBtn" class="icon-btn" title="Kirim Gambar">🖼️</button>
+          <button type="button" id="fileBtn" class="icon-btn" title="Kirim File">📎</button>
+          <button type="button" id="vnBtn" class="icon-btn" title="Rekam VN">🎤</button>
+          <input type="text" id="chatInput" placeholder="Tulis pesan..." autocomplete="off">
+          <button type="submit" class="btn-pop btn-send">KIRIM</button>
+
+          <input type="file" id="imgInput" accept="image/*" hidden>
+          <input type="file" id="fileInput" hidden>
+        </form>
+
+        <div id="recordingBar" class="recording-bar hidden">
+          <span class="dot"></span> Merekam... <span id="recTime">0:00</span>
+          <button type="button" id="stopRec" class="btn-pop">STOP</button>
+          <button type="button" id="cancelRec" class="btn-pop btn-cancel">BATAL</button>
+        </div>
+
+        <div id="uploadBar" class="upload-bar hidden">
+          <div id="uploadFill" class="upload-fill"></div>
+          <span id="uploadText">Uploading...</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROFILE -->
+  <section id="profile" class="tab">
+    <h2 class="section-title">👤 Profil Gw</h2>
+    <div id="profileInfo" class="form-card">
+      <p>Login dulu untuk lihat profil...</p>
+    </div>
+  </section>
+
+  <!-- LOGIN MODAL -->
+  <div id="loginModal" class="modal hidden">
+    <div class="modal-content">
+      <h2>LOGIN / DAFTAR</h2>
+      <input type="email" id="email" placeholder="Email" autocomplete="email">
+      <input type="password" id="password" placeholder="Password (min 6)" autocomplete="current-password">
+      <input type="text" id="username" placeholder="Username (buat daftar)">
+      <div class="modal-btns">
+        <button id="doLogin" class="btn-pop">LOGIN</button>
+        <button id="doRegister" class="btn-pop">DAFTAR</button>
+      </div>
+      <button id="closeModal" class="btn-pop btn-cancel">BATAL</button>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
