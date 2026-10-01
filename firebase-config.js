@@ -8,3 +8,5 @@ export const firebaseConfig = {
   messagingSenderId: "666512765812",
   appId: "1:666512765812:web:9bce88a00a791e2851f221"
 };
+
+export const GROQ_API_KEY = "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";
