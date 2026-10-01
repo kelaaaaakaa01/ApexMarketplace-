@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🛡️ ADMIN PANEL — APEX ft RIXX</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+
+  <!-- LOGIN -->
+  <div id="loginScreen" class="login-screen">
+    <div class="login-box">
+      <h1>🛡️ ADMIN PANEL</h1>
+      <p style="text-align:center;font-size:0.9rem;margin-bottom:15px">Login pakai akun admin lu</p>
+      <input type="email" id="adminEmail" placeholder="Email admin">
+      <input type="password" id="adminPassword" placeholder="Password admin">
+      <button id="adminLoginBtn" class="btn-admin">🔓 LOGIN</button>
+      <p id="loginMsg" style="text-align:center;font-size:0.85rem;margin-top:10px"></p>
+    </div>
+  </div>
+
+  <!-- PANEL -->
+  <div id="adminPanel" class="admin-panel hidden">
+
+    <header class="admin-header">
+      <h1>🛡️ ADMIN PANEL</h1>
+      <div class="header-right">
+        <span id="adminName">-</span>
+        <button id="logoutBtn" class="btn-logout">LOGOUT</button>
+      </div>
+    </header>
+
+    <!-- STATS -->
+    <div class="admin-stats">
+      <div class="admin-stat">
+        <div class="as-icon">👥</div>
+        <div class="as-num" id="aTotalUsers">-</div>
+        <div class="as-label">Total User</div>
+      </div>
+      <div class="admin-stat">
+        <div class="as-icon">📦</div>
+        <div class="as-num" id="aTotalPosts">-</div>
+        <div class="as-label">Total Post</div>
+      </div>
+      <div class="admin-stat">
+        <div class="as-icon">🚫</div>
+        <div class="as-num" id="aTotalBanned">-</div>
+        <div class="as-label">HWID Banned</div>
+      </div>
+      <div class="admin-stat">
+        <div class="as-icon">⭐</div>
+        <div class="as-num" id="aAvgRating">-</div>
+        <div class="as-label">Rating Web</div>
+      </div>
+    </div>
+
+    <!-- TABS -->
+    <div class="admin-tabs">
+      <button class="admin-tab active" data-tab="ban">🚫 BAN HWID</button>
+      <button class="admin-tab" data-tab="unban">✅ UNBAN HWID</button>
+      <button class="admin-tab" data-tab="close">🔒 TUTUP ROOM</button>
+      <button class="admin-tab" data-tab="users">👥 USERS</button>
+      <button class="admin-tab" data-tab="posts">📦 POSTS</button>
+    </div>
+
+    <!-- TAB: BAN -->
+    <section class="admin-tab-content active" id="tab-ban">
+      <h2>🚫 Ban HWID</h2>
+      <p style="font-size:0.9rem;margin-bottom:15px">
+        Ban device user berdasarkan HWID. Setelah di-ban, device itu gak bisa daftar akun baru.
+      </p>
+      <div class="admin-form">
+        <label>HWID Device:</label>
+        <input type="text" id="banHwid" placeholder="HWID-XXXXXXXXXXXXXXXX">
+
+        <label>Alasan Ban:</label>
+        <textarea id="banReason" placeholder="Contoh: Spam iklan, jual barang ilegal, dll"></textarea>
+
+        <label>Nama/Username User (opsional):</label>
+        <input type="text" id="banUsername" placeholder="Username yang di-ban">
+
+        <label>Device Info (opsional):</label>
+        <input type="text" id="banDeviceInfo" placeholder="Android/iPhone/etc">
+
+        <button id="doBanBtn" class="btn-admin btn-danger">🚫 BAN SEKARANG</button>
+      </div>
+    </section>
+
+    <!-- TAB: UNBAN -->
+    <section class="admin-tab-content" id="tab-unban">
+      <h2>✅ Unban HWID</h2>
+      <p style="font-size:0.9rem;margin-bottom:15px">
+        Hapus ban HWID biar device user bisa daftar akun lagi.
+      </p>
+
+      <div class="admin-form">
+        <label>Cari HWID / Cari dari list:</label>
+        <input type="text" id="unbanSearch" placeholder="Ketik HWID atau nama user...">
+
+        <div id="bannedList" class="banned-list">
+          <p style="padding:20px;text-align:center;opacity:0.6">Memuat...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB: CLOSE ROOM -->
+    <section class="admin-tab-content" id="tab-close">
+      <h2>🔒 Tutup Room (GB / Grup / Post)</h2>
+      <p style="font-size:0.9rem;margin-bottom:15px">
+        Tutup GB, Grup, atau Post supaya user gak bisa posting/chat lagi. Kasih alasan custom.
+      </p>
+
+      <div class="admin-form">
+        <label>Tipe Room:</label>
+        <select id="closeType">
+          <option value="gb">GB (Group Buying)</option>
+          <option value="group">Grup Chat</option>
+          <option value="channel">Saluran</option>
+          <option value="post">Post Jualan</option>
+          <option value="dm">Chat Pribadi</option>
+        </select>
+
+        <label>Room ID:</label>
+        <input type="text" id="closeRoomId" placeholder="Contoh: post_abc123 / group_xyz789">
+
+        <label>Alasan Tutup (akan muncul ke user):</label>
+        <textarea id="closeReason" placeholder="Contoh: Room ini ditutup karena spam. Hubungi admin."></textarea>
+
+        <button id="doCloseBtn" class="btn-admin btn-danger">🔒 TUTUP ROOM</button>
+      </div>
+
+      <h3 style="margin-top:30px;font-family:'Bangers'">📋 Room Yang Ditutup</h3>
+      <div id="closedRoomsList" class="closed-list">
+        <p style="padding:20px;text-align:center;opacity:0.6">Memuat...</p>
+      </div>
+    </section>
+
+    <!-- TAB: USERS -->
+    <section class="admin-tab-content" id="tab-users">
+      <h2>👥 Daftar User</h2>
+      <input type="text" id="userSearch" placeholder="🔍 Cari username / email / HWID..." style="width:100%;padding:12px;border:3px solid #000;border-radius:10px;font-family:'Comic Neue';font-size:1rem;margin-bottom:15px;">
+      <div id="usersList" class="users-list">
+        <p style="padding:20px;text-align:center;opacity:0.6">Memuat...</p>
+      </div>
+    </section>
+
+    <!-- TAB: POSTS -->
+    <section class="admin-tab-content" id="tab-posts">
+      <h2>📦 Daftar Post</h2>
+      <input type="text" id="postSearch" placeholder="🔍 Cari judul / penjual..." style="width:100%;padding:12px;border:3px solid #000;border-radius:10px;font-family:'Comic Neue';font-size:1rem;margin-bottom:15px;">
+      <div id="postsList" class="posts-list">
+        <p style="padding:20px;text-align:center;opacity:0.6">Memuat...</p>
+      </div>
+    </section>
+
+  </div>
+
+  <div id="toastAdmin" class="toast-admin hidden"></div>
+
+  <script type="module" src="admin.js"></script>
+</body>
+</html>
