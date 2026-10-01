@@ -2503,3 +2503,28 @@ body {
 }
 .stat b { display: block; font-family: 'Bangers', cursive; font-size: 1.5rem; }
 .stat span { font-size: 0.75rem; }
+
+/* FIX BOTTOM NAV KETUTUP */
+.main {
+  padding-bottom: 100px !important;
+}
+
+.bottom-nav {
+  display: flex !important;
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 9999 !important;
+}
+
+.page {
+  padding-bottom: 120px !important;
+}
+
+/* Pastikan bottom nav keliatan di mobile */
+@media (max-width: 800px) {
+  .bottom-nav {
+    display: flex !important;
+  }
+}
