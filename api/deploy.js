@@ -164,17 +164,25 @@ module.exports = async (req, res) => {
     const query = teamId ? `?teamId=${encodeURIComponent(teamId)}` : '';
 
     const vercelResponse = await fetch(`https://api.vercel.com/v13/deployments${query}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${vercelKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        name,
-        files: vercelFiles,
-        target: 'production'
-      })
-    });
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${vercelKey}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    name,
+    files: vercelFiles,
+    target: 'production',
+
+    projectSettings: {
+      framework: null,
+      buildCommand: null,
+      devCommand: null,
+      outputDirectory: null,
+      installCommand: null
+    }
+  })
+});
 
     const result = await vercelResponse.json().catch(() => ({}));
 
