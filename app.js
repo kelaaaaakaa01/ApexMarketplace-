@@ -2631,10 +2631,12 @@ $('deployBtn')?.addEventListener('click', async () => {
 // ============================================
 // ===== APEX AI / GROQ =====
 // ============================================
-const AI_HISTORY_KEY = 'apex_ai_history_v1';
+const AI_HISTORY_KEY = 'apex_ai_history_v2';
 let aiHistory = [];
 let aiConversations = [];
 let aiCurrentId = null;
+let aiRecording = false;
+let aiSpeechRecognition = null;
 
 function loadAIConversations() {
   try { aiConversations = JSON.parse(localStorage.getItem(AI_HISTORY_KEY) || '[]'); }
@@ -2642,191 +2644,134 @@ function loadAIConversations() {
   if (!Array.isArray(aiConversations)) aiConversations = [];
   aiConversations = aiConversations.filter(x => x && Array.isArray(x.messages));
 }
-
 function saveAIConversations() {
   try { localStorage.setItem(AI_HISTORY_KEY, JSON.stringify(aiConversations.slice(0, 30))); } catch (_) {}
 }
-
 function ensureAIConversation() {
   if (aiCurrentId) return;
   const now = Date.now();
   const item = { id: String(now), title: 'Chat baru', createdAt: now, updatedAt: now, messages: [] };
-  aiConversations.unshift(item);
-  aiCurrentId = item.id;
-  aiHistory = item.messages;
-  saveAIConversations();
+  aiConversations.unshift(item); aiCurrentId = item.id; aiHistory = item.messages; saveAIConversations();
 }
-
-function currentAIConversation() {
-  return aiConversations.find(x => x.id === aiCurrentId) || null;
+function currentAIConversation() { return aiConversations.find(x => x.id === aiCurrentId) || null; }
+function newAIConversation() {
+  aiCurrentId = null; aiHistory = []; ensureAIConversation(); renderAIMessages(); renderAIHistory();
+  $('aiHistoryPanel')?.classList.add('hidden'); $('aiInput')?.focus();
 }
-
 function renderAIHistory() {
-  const list = $('aiHistoryList');
-  if (!list) return;
+  const list = $('aiHistoryList'); if (!list) return;
   list.innerHTML = '';
-  if (!aiConversations.length) {
-    list.innerHTML = '<div class="ai-history-empty">Belum ada riwayat chat.</div>';
-    return;
-  }
+  if (!aiConversations.length) { list.innerHTML = '<div class="ai-history-empty">Belum ada riwayat chat.</div>'; return; }
   aiConversations.slice().sort((a,b) => b.updatedAt - a.updatedAt).forEach(conv => {
-    const row = document.createElement('div');
-    row.className = 'ai-history-row' + (conv.id === aiCurrentId ? ' active' : '');
-    const main = document.createElement('button');
-    main.type = 'button';
-    main.className = 'ai-history-open';
-    main.textContent = conv.title || 'Chat baru';
+    const row = document.createElement('div'); row.className = 'ai-history-row' + (conv.id === aiCurrentId ? ' active' : '');
+    const main = document.createElement('button'); main.type='button'; main.className='ai-history-open';
+    main.innerHTML = `<strong>${escapeHTML(conv.title || 'Chat baru')}</strong><small>${new Date(conv.updatedAt || conv.createdAt).toLocaleString()}</small>`;
     main.onclick = () => loadAIConversation(conv.id);
-    const del = document.createElement('button');
-    del.type = 'button';
-    del.className = 'ai-history-delete';
-    del.textContent = 'Delete';
-    del.title = 'Hapus riwayat ini';
-    del.onclick = () => deleteAIConversation(conv.id);
-    row.append(main, del);
-    list.appendChild(row);
+    const del = document.createElement('button'); del.type='button'; del.className='ai-history-delete'; del.textContent='×'; del.title='Hapus riwayat'; del.onclick=()=>deleteAIConversation(conv.id);
+    row.append(main, del); list.appendChild(row);
   });
 }
-
+function escapeHTML(value) { const d=document.createElement('div'); d.textContent=String(value ?? ''); return d.innerHTML; }
 function renderAIMessages() {
-  const box = $('aiMessages');
-  if (!box) return;
-  box.innerHTML = '';
-  if (!aiHistory.length) {
-    appendAIMessage('assistant', 'Halo, gw APEX AI. Ada yang bisa gw bantu?');
-    return;
+  const box=$('aiMessages'); if(!box) return; box.innerHTML='';
+  if(!aiHistory.length) {
+    const welcome=document.createElement('div'); welcome.className='ai-welcome';
+    welcome.innerHTML='<div class="ai-welcome-orb">✦</div><h2>Halo, gw APEX.</h2><p>Temenin coding, cari ide, jelasin error, atau ngobrol. Kirim teks, gambar, file, atau pakai voice.</p><div class="ai-welcome-grid"><span>⚡ Fast response</span><span>⌁ Coding help</span><span>▧ Image & file</span><span>◉ Voice input</span></div>';
+    box.appendChild(welcome); return;
   }
-  aiHistory.forEach((m, index) => appendAIMessage(m.role, m.content, index));
+  aiHistory.forEach((m,index)=>appendAIMessage(m,index));
+  box.scrollTop=box.scrollHeight;
 }
-
-function appendAIMessage(role, text, index = -1) {
-  const box = $('aiMessages');
-  if (!box) return;
-  const item = document.createElement('div');
-  item.className = 'ai-msg ' + (role === 'user' ? 'ai-msg-user' : 'ai-msg-bot');
-  const content = document.createElement('span');
-  content.textContent = text;
-  item.appendChild(content);
-  if (index >= 0) {
-    const del = document.createElement('button');
-    del.className = 'ai-msg-delete';
-    del.type = 'button';
-    del.textContent = '×';
-    del.title = 'Hapus pesan';
-    del.onclick = () => deleteAIMessage(index);
-    item.appendChild(del);
-  }
+function appendAIMessage(message,index=-1) {
+  const box=$('aiMessages'); if(!box) return;
+  const role=message.role==='user'?'user':'bot';
+  const item=document.createElement('div'); item.className=`ai-msg ai-msg-${role}`;
+  const avatar=document.createElement('div'); avatar.className='ai-msg-avatar'; avatar.textContent=role==='user'?'YOU':'✦';
+  const bubble=document.createElement('div'); bubble.className='ai-msg-bubble';
+  if(message.type==='image' && message.data){
+    const img=document.createElement('img'); img.src=message.data; img.alt=message.name||'Image'; bubble.appendChild(img);
+    const cap=document.createElement('div'); cap.className='ai-attachment-caption'; cap.textContent=message.name||'Image'; bubble.appendChild(cap);
+  } else if(message.type==='file') {
+    const card=document.createElement('div'); card.className='ai-file-card'; card.innerHTML=`<span class="ai-file-icon">□</span><div><b>${escapeHTML(message.name||'File')}</b><small>${escapeHTML(message.size||'')}</small></div>`; bubble.appendChild(card);
+  } else if(message.type==='voice') {
+    const card=document.createElement('div'); card.className='ai-voice-card'; card.innerHTML=`<span>◉</span><div class="ai-wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><small>Voice message</small>`; bubble.appendChild(card);
+  } else { bubble.textContent=message.content||''; }
+  item.append(avatar,bubble);
+  if(index>=0){ const del=document.createElement('button'); del.className='ai-msg-delete'; del.type='button'; del.textContent='×'; del.title='Hapus pesan'; del.onclick=()=>deleteAIMessage(index); item.appendChild(del); }
   box.appendChild(item);
-  box.scrollTop = box.scrollHeight;
 }
-
-function persistCurrentAI() {
-  const conv = currentAIConversation();
-  if (!conv) return;
-  conv.messages = aiHistory;
-  conv.updatedAt = Date.now();
-  const firstUser = aiHistory.find(m => m.role === 'user');
-  if (firstUser) conv.title = firstUser.content.slice(0, 42) || 'Chat baru';
-  saveAIConversations();
+function persistCurrentAI(){
+  const conv=currentAIConversation(); if(!conv)return; conv.messages=aiHistory; conv.updatedAt=Date.now();
+  const firstUser=aiHistory.find(m=>m.role==='user' && m.content); if(firstUser) conv.title=firstUser.content.slice(0,42)||'Chat baru'; saveAIConversations();
 }
-
-function loadAIConversation(id) {
-  const conv = aiConversations.find(x => x.id === id);
-  if (!conv) return;
-  aiCurrentId = conv.id;
-  aiHistory = Array.isArray(conv.messages) ? conv.messages.slice() : [];
-  renderAIMessages();
-  $('aiHistoryPanel')?.classList.add('hidden');
-  renderAIHistory();
+function loadAIConversation(id){
+  const conv=aiConversations.find(x=>x.id===id); if(!conv)return; aiCurrentId=conv.id; aiHistory=Array.isArray(conv.messages)?conv.messages.slice():[];
+  renderAIMessages(); renderAIHistory(); $('aiHistoryPanel')?.classList.add('hidden'); $('aiInput')?.focus();
 }
-
-function deleteAIMessage(index) {
-  if (index < 0 || index >= aiHistory.length) return;
-  aiHistory.splice(index, 1);
-  persistCurrentAI();
-  renderAIMessages();
+function deleteAIMessage(index){ if(index<0||index>=aiHistory.length)return; aiHistory.splice(index,1); persistCurrentAI(); renderAIMessages(); }
+function deleteAIConversation(id){
+  aiConversations=aiConversations.filter(x=>x.id!==id); if(aiCurrentId===id){aiCurrentId=null;aiHistory=[];ensureAIConversation();}
+  saveAIConversations(); renderAIMessages(); renderAIHistory();
 }
-
-function deleteAIConversation(id) {
-  aiConversations = aiConversations.filter(x => x.id !== id);
-  if (aiCurrentId === id) {
-    aiCurrentId = null;
-    aiHistory = [];
-    ensureAIConversation();
-  }
-  saveAIConversations();
-  renderAIMessages();
-  renderAIHistory();
+function clearCurrentAI(){ aiHistory=[]; const conv=currentAIConversation(); if(conv){conv.messages=[];conv.title='Chat baru';conv.updatedAt=Date.now();} saveAIConversations(); renderAIMessages(); }
+function showAITyping(){
+  const box=$('aiMessages'); if(!box)return; const item=document.createElement('div'); item.id='aiTyping'; item.className='ai-msg ai-msg-bot ai-typing';
+  item.innerHTML='<div class="ai-msg-avatar">✦</div><div class="ai-msg-bubble"><span></span><span></span><span></span></div>'; box.appendChild(item); box.scrollTop=box.scrollHeight;
 }
-
-function clearCurrentAI() {
-  aiHistory = [];
-  const conv = currentAIConversation();
-  if (conv) {
-    conv.messages = [];
-    conv.title = 'Chat baru';
-    conv.updatedAt = Date.now();
-  }
-  saveAIConversations();
-  renderAIMessages();
+function removeAITyping(){ $('aiTyping')?.remove(); }
+function showAIToast(text){ const n=document.createElement('div'); n.className='ai-mini-toast'; n.textContent=text; $('aiModal')?.appendChild(n); setTimeout(()=>n.remove(),1800); }
+async function askAPEXAI(text,imageData=''){
+  const response=await fetch('/api/groq',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,history:aiHistory.filter(m=>m.type!=='image'&&m.type!=='file'&&m.type!=='voice').slice(-12),imageData})});
+  const data=await response.json().catch(()=>({})); if(!response.ok)throw new Error(data.message||data.error||'AI gagal merespons.'); return data.reply||'AI tidak memberikan jawaban.';
 }
-
-async function askAPEXAI(text) {
-  const response = await fetch('/api/groq', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message: text, history: aiHistory.slice(-12) })
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.message || data.error || 'AI gagal merespons.');
-  return data.reply || 'AI tidak memberikan jawaban.';
+function openAIChat(){ loadAIConversations(); ensureAIConversation(); $('aiModal')?.classList.remove('hidden'); renderAIMessages(); renderAIHistory(); setTimeout(()=>$('aiInput')?.focus(),120); }
+function toggleAttachMenu(){ $('aiAttachMenu')?.classList.toggle('hidden'); }
+function addAttachment(file,type){
+  if(!file)return; ensureAIConversation();
+  const size=file.size>1048576?(file.size/1048576).toFixed(1)+' MB':Math.max(1,Math.round(file.size/1024))+' KB';
+  if(type==='image'){
+    const reader=new FileReader(); reader.onload=async()=>{
+      const dataUrl=reader.result; aiHistory.push({role:'user',type:'image',name:file.name,data:dataUrl,content:`[Image: ${file.name}]`}); persistCurrentAI(); renderAIMessages(); showAIToast('Menganalisis gambar...'); showAITyping();
+      try { const reply=await askAPEXAI('Analisis gambar ini dan jelaskan hal penting yang kamu lihat.', dataUrl); removeAITyping(); aiHistory.push({role:'assistant',content:reply}); persistCurrentAI(); renderAIMessages(); }
+      catch(err){ removeAITyping(); appendAIMessage({role:'assistant',content:'Image AI error: '+(err.message||'Gagal menganalisis gambar.')}); }
+    }; reader.readAsDataURL(file);
+  } else { aiHistory.push({role:'user',type:'file',name:file.name,size,content:`[File: ${file.name}]`}); persistCurrentAI(); renderAIMessages(); showAIToast('File ditambahkan'); }
 }
-
-function openAIChat() {
-  loadAIConversations();
-  ensureAIConversation();
-  $('aiModal')?.classList.remove('hidden');
-  renderAIMessages();
-  renderAIHistory();
-  setTimeout(() => $('aiInput')?.focus(), 80);
+function startVoiceInput(){
+  const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SpeechRecognition){ showAIToast('Voice input tidak didukung browser ini'); return; }
+  if(aiSpeechRecognition){ try{aiSpeechRecognition.stop();}catch(_){} aiSpeechRecognition=null; $('aiVoiceBtn')?.classList.remove('active'); return; }
+  const rec=new SpeechRecognition(); aiSpeechRecognition=rec; rec.lang='id-ID'; rec.interimResults=true; rec.continuous=false; $('aiVoiceBtn')?.classList.add('active'); showAIToast('Dengarkan...');
+  rec.onresult=e=>{ let out=''; for(const r of e.results)out+=r[0].transcript; $('aiInput').value=out; };
+  rec.onerror=()=>showAIToast('Voice gagal digunakan'); rec.onend=()=>{aiSpeechRecognition=null;$('aiVoiceBtn')?.classList.remove('active');$('aiInput')?.focus();}; rec.start();
 }
-
-$('aiFloatBtn')?.addEventListener('click', openAIChat);
-$('aiClose')?.addEventListener('click', () => $('aiModal')?.classList.add('hidden'));
-$('aiHistoryBtn')?.addEventListener('click', () => {
-  renderAIHistory();
-  $('aiHistoryPanel')?.classList.toggle('hidden');
+function sendVoiceBubble(){
+  ensureAIConversation(); aiHistory.push({role:'user',type:'voice',content:'[Voice message]'}); persistCurrentAI(); renderAIMessages(); showAIToast('Voice message ditambahkan');
+}
+$('aiFloatBtn')?.addEventListener('click',openAIChat);
+$('aiClose')?.addEventListener('click',()=>{$('aiModal')?.classList.add('hidden');});
+$('aiNewBtn')?.addEventListener('click',newAIConversation);
+$('aiHistoryBtn')?.addEventListener('click',()=>{renderAIHistory();$('aiHistoryPanel')?.classList.toggle('hidden');});
+$('aiHistoryClose')?.addEventListener('click',()=>$('aiHistoryPanel')?.classList.add('hidden'));
+$('aiClearBtn')?.addEventListener('click',()=>{if(confirm('Hapus semua pesan di chat APEX AI ini?'))clearCurrentAI();});
+$('aiAttachBtn')?.addEventListener('click',toggleAttachMenu);
+$('aiVoiceBtn')?.addEventListener('click',startVoiceInput);
+$('aiSuggestions')?.addEventListener('click',e=>{const b=e.target.closest('[data-ai-prompt]');if(b){$('aiInput').value=b.dataset.aiPrompt;$('aiInput').focus();}});
+document.querySelectorAll('[data-ai-action]').forEach(btn=>btn.addEventListener('click',()=>{
+  const action=btn.dataset.aiAction; $('aiAttachMenu')?.classList.add('hidden');
+  if(action==='image')$('aiImageInput')?.click(); else if(action==='camera')$('aiCameraInput')?.click(); else if(action==='file')$('aiFileInput')?.click(); else if(action==='voice')startVoiceInput();
+}));
+$('aiImageInput')?.addEventListener('change',e=>addAttachment(e.target.files?.[0],'image'));
+$('aiCameraInput')?.addEventListener('change',e=>addAttachment(e.target.files?.[0],'image'));
+$('aiFileInput')?.addEventListener('change',e=>addAttachment(e.target.files?.[0],'file'));
+document.addEventListener('click',e=>{if(!e.target.closest('.ai-form')&&!e.target.closest('#aiAttachMenu'))$('aiAttachMenu')?.classList.add('hidden');});
+$('aiForm')?.addEventListener('submit',async e=>{
+  e.preventDefault(); ensureAIConversation(); const input=$('aiInput'); const text=input?.value.trim(); if(!text)return; input.value='';
+  aiHistory.push({role:'user',content:text}); persistCurrentAI(); renderAIMessages(); showAITyping(); const btn=$('aiSend'); if(btn)btn.disabled=true;
+  try{const reply=await askAPEXAI(text); removeAITyping(); aiHistory.push({role:'assistant',content:reply}); persistCurrentAI(); renderAIMessages();}
+  catch(err){removeAITyping();appendAIMessage({role:'assistant',content:'AI error: '+(err.message||'Gagal terhubung.')});}
+  finally{if(btn)btn.disabled=false;input?.focus();}
 });
-$('aiHistoryClose')?.addEventListener('click', () => $('aiHistoryPanel')?.classList.add('hidden'));
-$('aiClearBtn')?.addEventListener('click', () => {
-  if (confirm('Hapus semua pesan di chat APEX AI ini?')) clearCurrentAI();
-});
-
-$('aiForm')?.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  ensureAIConversation();
-  const input = $('aiInput');
-  const text = input?.value.trim();
-  if (!text) return;
-  input.value = '';
-  aiHistory.push({ role: 'user', content: text });
-  persistCurrentAI();
-  renderAIMessages();
-  const btn = $('aiSend');
-  if (btn) btn.disabled = true;
-  try {
-    const reply = await askAPEXAI(text);
-    aiHistory.push({ role: 'assistant', content: reply });
-    persistCurrentAI();
-    renderAIMessages();
-  } catch (err) {
-    appendAIMessage('assistant', 'AI error: ' + (err.message || 'Gagal terhubung.'));
-  } finally {
-    if (btn) btn.disabled = false;
-    input?.focus();
-  }
-});
-
 loadAIConversations();
 
 // ============================================

@@ -546,30 +546,55 @@
     </div>
   </div>
 
-  <button id="aiFloatBtn" class="ai-float-btn" title="APEX AI">AI</button>
+  <button id="aiFloatBtn" class="ai-float-btn" title="APEX AI"><span class="ai-orb">✦</span><span>AI</span></button>
 
   <div id="aiModal" class="ai-modal hidden">
     <div class="ai-box">
       <div class="ai-header">
-        <div><strong>APEX AI</strong><span>Powered by Groq</span></div>
+        <div class="ai-brand">
+          <div class="ai-avatar"><span>✦</span></div>
+          <div class="ai-brand-copy"><strong>APEX AI</strong><span><i></i> Online · Powered by Groq</span></div>
+        </div>
         <div class="ai-head-actions">
-          <button id="aiHistoryBtn" type="button" title="History">History</button>
-          <button id="aiClearBtn" type="button" title="Hapus chat">Delete</button>
-          <button id="aiClose" type="button" title="Tutup">✕</button>
+          <button id="aiNewBtn" type="button" title="Chat baru">＋</button>
+          <button id="aiHistoryBtn" type="button" title="History">◷</button>
+          <button id="aiClearBtn" type="button" title="Hapus chat">⌫</button>
+          <button id="aiClose" type="button" title="Tutup">×</button>
         </div>
       </div>
+
       <div id="aiMessages" class="ai-messages"></div>
+
       <div id="aiHistoryPanel" class="ai-history-panel hidden">
-        <div class="ai-history-head"><b>Chat History</b><button id="aiHistoryClose" type="button">✕</button></div>
+        <div class="ai-history-head"><div><b>Chat History</b><small>Riwayat percakapan APEX AI</small></div><button id="aiHistoryClose" type="button">×</button></div>
         <div id="aiHistoryList" class="ai-history-list"></div>
       </div>
+
+      <div id="aiAttachMenu" class="ai-attach-menu hidden">
+        <button type="button" data-ai-action="image"><span>▧</span><div><b>Image</b><small>Kirim gambar</small></div></button>
+        <button type="button" data-ai-action="file"><span>□</span><div><b>File</b><small>Dokumen atau file</small></div></button>
+        <button type="button" data-ai-action="voice"><span>◉</span><div><b>Voice</b><small>Input suara</small></div></button>
+        <button type="button" data-ai-action="camera"><span>⌾</span><div><b>Camera</b><small>Ambil foto</small></div></button>
+      </div>
+
+      <div class="ai-suggestions" id="aiSuggestions">
+        <button type="button" data-ai-prompt="Jelaskan apa yang bisa kamu lakukan">Apa yang bisa kamu lakukan?</button>
+        <button type="button" data-ai-prompt="Bantu saya membuat website">Bantu buat website</button>
+        <button type="button" data-ai-prompt="Bantu debug kode saya">Debug kode</button>
+      </div>
+
       <form id="aiForm" class="ai-form">
-        <input id="aiInput" type="text" placeholder="Tanya APEX AI..." autocomplete="off">
-        <button id="aiSend" class="btn-pop" type="submit">➤</button>
+        <button id="aiAttachBtn" class="ai-tool-btn" type="button" title="Lampiran">＋</button>
+        <input id="aiInput" type="text" placeholder="Tanya APEX AI..." autocomplete="off" enterkeyhint="send">
+        <button id="aiVoiceBtn" class="ai-tool-btn" type="button" title="Voice">◉</button>
+        <button id="aiSend" class="ai-send-btn" type="submit" title="Kirim">➤</button>
       </form>
+      <input id="aiImageInput" type="file" accept="image/*" hidden>
+      <input id="aiCameraInput" type="file" accept="image/*" capture="environment" hidden>
+      <input id="aiFileInput" type="file" hidden>
+      <div class="ai-composer-note">APEX dapat membantu menulis, menjelaskan, debug, dan menganalisis input yang kamu kirim.</div>
     </div>
   </div>
-
   <div id="toast" class="toast hidden"></div>
   <script type="module" src="app.js"></script>
 </body>
