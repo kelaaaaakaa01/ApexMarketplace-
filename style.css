@@ -20,25 +20,13 @@ body {
 }
 
 .overlay {
-  position: fixed;
-  inset: 0;
+  position: fixed; inset: 0;
   background: rgba(0,0,0,0.5);
   z-index: 999;
   opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: opacity 0.3s, visibility 0.3s;
+  transition: opacity 0.3s;
 }
-
-.overlay.show {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-}
-
-.overlay.hidden {
-  display: none !important;
-}
+.overlay.show { opacity: 1; }
 
 .sidebar {
   position: fixed;
@@ -2107,39 +2095,4 @@ body {
   .deploy-info-grid { grid-template-columns:1fr; }
   .deploy-card { padding:15px; }
   .deploy-code { min-height:260px; }
-}
-
-/* ===== FIX CLICK / TOUCH ===== */
-
-/* Element tersembunyi tidak boleh menangkap sentuhan */
-.hidden {
-  display: none !important;
-  pointer-events: none !important;
-}
-
-/* Overlay hanya aktif ketika benar-benar dibuka */
-.overlay:not(.show) {
-  pointer-events: none !important;
-}
-
-/* Jangan biarkan elemen dekorasi menghalangi tombol */
-.closed-stamp,
-.post-card .closed-stamp {
-  pointer-events: none !important;
-}
-
-/* Popup tetap bisa menerima touch */
-.modal:not(.hidden),
-.site-closed-overlay {
-  pointer-events: auto;
-}
-
-/* Semua tombol/input harus bisa disentuh */
-button,
-a,
-input,
-textarea,
-select,
-label {
-  touch-action: manipulation;
 }
