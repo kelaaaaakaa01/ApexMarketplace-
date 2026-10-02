@@ -1,4 +1,5 @@
 import { firebaseConfig } from './firebase-config.js';
+import { getMessaging, getToken, isSupported as isMessagingSupported, onMessage } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
   getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
@@ -307,24 +308,91 @@ async function checkCurrentChatClosed() {
 // ============================================
 // ===== NOTIFIKASI =====
 // ============================================
-function requestNotificationPermission() {
-  if ('Notification' in window && Notification.permission === 'default') {
-    Notification.requestPermission();
+let notificationRegistration = null;
+let messagingInstance = null;
+let notificationPermissionRequested = false;
+
+async function initNotificationSystem() {
+  if (!('Notification' in window)) return;
+
+  try {
+    if ('serviceWorker' in navigator) {
+      notificationRegistration = await navigator.serviceWorker.register('/notification-sw.js', { scope: '/' });
+    }
+  } catch (e) {
+    console.warn('Notification service worker:', e);
   }
-}
-function showNotification(title, body) {
-  if ('Notification' in window && Notification.permission === 'granted') {
-    try {
-      new Notification(title, {
-        body,
-        icon: 'https://via.placeholder.com/64/FFD93D/000?text=A'
+
+  // FCM is optional. The local/service-worker notification path still works
+  // without a VAPID key, while FCM can be enabled later from Firebase.
+  try {
+    if (currentUser && await isMessagingSupported()) {
+      messagingInstance = getMessaging(app);
+      onMessage(messagingInstance, (payload) => {
+        const title = payload.notification?.title || payload.data?.title || 'Nova';
+        const body = payload.notification?.body || payload.data?.body || '';
+        showNotification(title, body);
       });
-    } catch (e) {}
+    }
+  } catch (e) {
+    console.warn('FCM unavailable:', e);
   }
 }
+
+async function requestNotificationPermission(force = false) {
+  if (!('Notification' in window)) return 'unsupported';
+  if (Notification.permission === 'granted') return 'granted';
+  if (Notification.permission === 'denied') return 'denied';
+  if (notificationPermissionRequested && !force) return 'default';
+
+  notificationPermissionRequested = true;
+  try {
+    return await Notification.requestPermission();
+  } catch (e) {
+    return 'default';
+  }
+}
+
+async function showNotification(title, body, options = {}) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return false;
+
+  const payload = {
+    body: body || '',
+    icon: '/favicon.ico',
+    badge: '/favicon.ico',
+    tag: options.tag || 'nova-notification',
+    renotify: true,
+    vibrate: options.vibrate || [180, 100, 180],
+    data: options.data || {}
+  };
+
+  try {
+    if (notificationRegistration) {
+      await notificationRegistration.showNotification(title, payload);
+      return true;
+    }
+  } catch (e) {
+    console.warn('SW notification failed:', e);
+  }
+
+  // Fallback for desktop browsers that support the Notification constructor.
+  try {
+    new Notification(title, payload);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function enableNotificationsFromUserGesture() {
+  if (!currentUser) return;
+  if (Notification.permission === 'default') requestNotificationPermission(true);
+}
+
 function playBeep() {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
@@ -335,8 +403,10 @@ function playBeep() {
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
     osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + 0.3);
+    setTimeout(() => ctx.close().catch(() => {}), 500);
   } catch (e) {}
 }
+
 function updateFaviconBadge(count) {
   let link = document.querySelector("link[rel*='icon']");
   if (!link) {
@@ -373,1087 +443,8 @@ function updateTotalUnread() {
   updateFaviconBadge(total);
 }
 
-// ============================================
-// ===== PRESENCE =====
-// ============================================
-async function markOnline() {
-  if (!currentUser) return;
-  try {
-    await setDoc(doc(db, 'users', currentUser.uid), {
-      online: true, lastSeen: serverTimestamp()
-    }, { merge: true });
-  } catch (e) {}
-}
-async function markOffline() {
-  if (!currentUser) return;
-  try {
-    await updateDoc(doc(db, 'users', currentUser.uid), {
-      online: false, lastSeen: serverTimestamp()
-    });
-  } catch (e) {}
-}
-function startPresence() {
-  if (!currentUser) return;
-  markOnline();
-  if (presenceInterval) clearInterval(presenceInterval);
-  presenceInterval = setInterval(markOnline, 30000);
-}
-function stopPresence() {
-  if (presenceInterval) { clearInterval(presenceInterval); presenceInterval = null; }
-  markOffline();
-}
-
-// ============================================
-// ===== SIDEBAR TOGGLE =====
-// ============================================
-function openSidebar() {
-  $('sidebar')?.classList.add('show');
-  const ov = $('overlay');
-  if (ov) {
-    ov.classList.remove('hidden');
-    setTimeout(() => ov.classList.add('show'), 10);
-  }
-}
-function closeSidebar() {
-  $('sidebar')?.classList.remove('show');
-  const ov = $('overlay');
-  if (ov) {
-    ov.classList.remove('show');
-    setTimeout(() => ov.classList.add('hidden'), 300);
-  }
-}
-$('menuBtn')?.addEventListener('click', openSidebar);
-$('sidebarClose')?.addEventListener('click', closeSidebar);
-$('overlay')?.addEventListener('click', closeSidebar);
-
-// ============================================
-// ===== ROUTING =====
-// ============================================
-function navigate(page) {
-  history.replaceState(null, '', '#' + page);
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.side-link').forEach(l => l.classList.remove('active'));
-  const pageEl = $('page-' + page);
-  if (pageEl) pageEl.classList.add('active');
-  document.querySelectorAll(`.side-link[data-page="${page}"]`).forEach(l => l.classList.add('active'));
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-  closeSidebar();
-  if (page === 'chats') renderChatList();
-  if (page === 'channels') renderChannels();
-}
-function initRoute() {
-  const hash = location.hash.replace('#', '') || 'home';
-  navigate(hash);
-}
-document.querySelectorAll('.side-link, [data-page]').forEach(el => {
-  el.addEventListener('click', (e) => {
-    const page = el.dataset.page;
-    if (page) { e.preventDefault(); navigate(page); }
-  });
-});
-
-// ============================================
-// ===== AUTH =====
-// ============================================
-let authMode = 'login';
-function setAuthMode(mode) {
-  authMode = mode;
-  document.querySelectorAll('.auth-tab').forEach(t => t.classList.toggle('active', t.dataset.authtab === mode));
-  $('authUsername')?.classList.toggle('hidden', mode !== 'register');
-  const btn = $('doAuth');
-  if (btn) btn.textContent = mode === 'register' ? 'DAFTAR' : 'LOGIN';
-}
-document.querySelectorAll('.auth-tab').forEach(tab => {
-  tab.addEventListener('click', () => setAuthMode(tab.dataset.authtab));
-});
-$('switchAuth')?.addEventListener('click', (e) => {
-  e.preventDefault();
-  setAuthMode(authMode === 'login' ? 'register' : 'login');
-});
-$('topAuthBtn')?.addEventListener('click', () => {
-  if (currentUser) navigate('profile');
-  else { navigate('auth'); setAuthMode('login'); }
-});
-$('sideAuthBtn')?.addEventListener('click', () => {
-  if (currentUser) { if (confirm('Logout?')) signOut(auth); }
-  else { navigate('auth'); setAuthMode('login'); }
-});
-
-$('doAuth')?.addEventListener('click', async () => {
-  const email = $('authEmail').value.trim();
-  const pass = $('authPassword').value;
-  const uname = $('authUsername').value.trim() || email.split('@')[0];
-  if (!email || !pass) return toast('Email & password wajib!', 'error');
-  if (pass.length < 6) return toast('Password min 6 karakter!', 'error');
-
-  const btn = $('doAuth');
-  btn.disabled = true;
-  btn.textContent = 'LOADING...';
-
-  try {
-    if (authMode === 'register') {
-      // Cek ban HWID dulu
-      const hwid = currentHWID || await generateHWID();
-      currentHWID = hwid;
-      const banData = await checkHWIDBan(hwid);
-      if (banData) {
-        btn.disabled = false;
-        btn.textContent = 'DAFTAR';
-        showBannedScreen(banData, hwid);
-        return;
-      }
-
-      const cred = await createUserWithEmailAndPassword(auth, email, pass);
-      await updateProfile(cred.user, { displayName: uname });
-
-      try {
-        await setDoc(doc(db, 'users', cred.user.uid), {
-          username: uname, email, photoURL: '', bio: '',
-          online: true, lastSeen: serverTimestamp(),
-          createdAt: serverTimestamp()
-        });
-        await saveHWIDToUser(cred.user.uid, hwid);
-      } catch (e) {}
-
-      toast('✅ Daftar sukses!', 'success');
-    } else {
-      // Login biasa — cek ban juga
-      const hwid = currentHWID || await generateHWID();
-      currentHWID = hwid;
-      const banData = await checkHWIDBan(hwid);
-      if (banData) {
-        btn.disabled = false;
-        btn.textContent = 'LOGIN';
-        showBannedScreen(banData, hwid);
-        return;
-      }
-      await signInWithEmailAndPassword(auth, email, pass);
-      toast('✅ Login berhasil!', 'success');
-    }
-    $('authEmail').value = ''; $('authPassword').value = ''; $('authUsername').value = '';
-    navigate('home');
-  } catch (e) {
-    toast('Gagal: ' + translateErr(e.code), 'error');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = authMode === 'register' ? 'DAFTAR' : 'LOGIN';
-  }
-});
-
-onAuthStateChanged(auth, async (user) => {
-  currentUser = user;
-  if (user) {
-    // Update HWID tiap login (biar user lama ke-update juga)
-    if (currentHWID) {
-      saveHWIDToUser(user.uid, currentHWID);
-    }
-    const name = user.displayName || user.email;
-    await loadUserData();
-
-    const photoURL = currentUserData?.photoURL || '';
-
-    const topBtn = $('topAuthBtn');
-    if (topBtn) {
-      topBtn.className = 'top-avatar';
-      if (photoURL) topBtn.innerHTML = `<img src="${photoURL}">`;
-      else { topBtn.textContent = getInitial(name); topBtn.classList.add(getAvatarColor(name)); }
-    }
-
-    const sideAv = $('sideAvatar');
-    if (sideAv) {
-      sideAv.className = 'avatar';
-      if (photoURL) sideAv.innerHTML = `<img src="${photoURL}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
-      else { sideAv.textContent = getInitial(name); sideAv.classList.add(getAvatarColor(name)); }
-    }
-    const sideName = $('sideName');
-    if (sideName) sideName.textContent = name;
-    const sideAuthBtn = $('sideAuthBtn');
-    if (sideAuthBtn) sideAuthBtn.textContent = 'LOGOUT';
-
-    requestNotificationPermission();
-    startPresence();
-    subscribeUsers();
-    subscribeMyPosts();
-    subscribeChatList();
-    subscribeStoryRow();
-    subscribeChannels();
-    subscribeMyRating();
-    listenIncomingCalls();
-    listenGlobalNotifications();
-    renderProfile();
-  } else {
-    const topBtn = $('topAuthBtn');
-    if (topBtn) {
-      topBtn.textContent = 'LOGIN';
-      topBtn.className = 'btn-login-top';
-      topBtn.style.cssText = '';
-    }
-    const sideAv = $('sideAvatar');
-    if (sideAv) { sideAv.textContent = '?'; sideAv.className = 'avatar'; }
-    const sideName = $('sideName');
-    if (sideName) sideName.textContent = 'Guest';
-    const sideAuthBtn = $('sideAuthBtn');
-    if (sideAuthBtn) sideAuthBtn.textContent = 'LOGIN';
-
-    stopPresence();
-    [unsubscribeUsers, unsubscribeMyPosts, unsubscribeChat, unsubscribeChatList,
-     unsubscribeStoryRow, unsubscribeChannels, unsubscribeIncomingCall,
-     unsubscribeMyRating].forEach(fn => fn && fn());
-    allChats = []; allUsers = {}; allChannels = []; unreadCounts = {};
-
-    const pi = $('profileInfo');
-    if (pi) pi.innerHTML = '<p>Login dulu...</p>';
-    const wcl = $('waChatList');
-    if (wcl) wcl.innerHTML = '<p style="padding:20px;text-align:center;opacity:0.6">Login dulu...</p>';
-    const mp = $('myPosts');
-    if (mp) mp.innerHTML = '<p style="padding:20px">Login buat lihat...</p>';
-    const cl = $('channelList');
-    if (cl) cl.innerHTML = '<p style="padding:20px;text-align:center;opacity:0.6">Login dulu...</p>';
-    updateTotalUnread();
-  }
-});
-
-window.addEventListener('beforeunload', () => stopPresence());
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && currentUser) markOnline();
-});
-
-async function loadUserData() {
-  if (!currentUser) return;
-  try {
-    const snap = await getDoc(doc(db, 'users', currentUser.uid));
-    currentUserData = snap.exists() ? snap.data() : {
-      username: currentUser.displayName || currentUser.email.split('@')[0],
-      email: currentUser.email, photoURL: '', bio: ''
-    };
-  } catch (e) {
-    currentUserData = { username: currentUser.displayName || currentUser.email.split('@')[0] };
-  }
-}
-
-// ============================================
-// ===== POST JUALAN =====
-// ============================================
-$('postForm')?.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  if (!currentUser) { toast('Login dulu!', 'error'); navigate('auth'); return; }
-  const title = $('postTitle').value.trim();
-  const desc = $('postDesc').value.trim();
-  const price = Number($('postPrice').value);
-  const image = $('postImage').value.trim() || 'https://via.placeholder.com/300x180/FFD93D/000?text=No+Image';
-  if (!title || !desc || isNaN(price)) return toast('Isi semua field!', 'error');
-
-  const btn = e.target.querySelector('button[type="submit"]');
-  btn.disabled = true; btn.textContent = 'POSTING...';
-  try {
-    await addDoc(collection(db, 'posts'), {
-      title, desc, price, image,
-      sellerId: currentUser.uid,
-      sellerName: currentUser.displayName || currentUserData?.username || 'Anonim',
-      sellerEmail: currentUser.email || '',
-      likes: [], createdAt: serverTimestamp()
-    });
-    e.target.reset();
-    toast('✅ Postingan berhasil!', 'success');
-    navigate('feed');
-  } catch (err) { toast('Error: ' + translateErr(err.code || err.message), 'error'); }
-  finally { btn.disabled = false; btn.textContent = '🚀 POSTING!'; }
-});
-
-function postCardHTML(p, id) {
-  const isMine = currentUser && p.sellerId === currentUser.uid;
-  const liked = currentUser && Array.isArray(p.likes) && p.likes.includes(currentUser.uid);
-  const sellerName = p.sellerName || 'Anonim';
-  return `
-    <button class="like-btn ${liked ? 'liked' : ''}" data-like="${id}">${liked ? '❤️' : '🤍'}</button>
-    <img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.title)}" onerror="this.src='https://via.placeholder.com/300x180'">
-    <h3>${escapeHtml(p.title)}</h3>
-    <p>${escapeHtml(p.desc)}</p>
-    <span class="price">${formatPrice(p.price)}</span>
-    <div class="seller">${avatarHTML(sellerName, 'small')}<span>${escapeHtml(sellerName)}</span></div>
-    <div class="actions">
-      ${isMine
-        ? `<button class="btn-pop" data-delete="${id}">🗑️ HAPUS</button>`
-        : `<button class="btn-pop" data-chat-user="${p.sellerId}" data-chat-name="${escapeHtml(sellerName)}">💬 CHAT</button>`}
-    </div>
-  `;
-}
-function bindPostActions(container) {
-  container.querySelectorAll('[data-chat-user]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      if (!currentUser) { navigate('auth'); return; }
-      const uid = btn.dataset.chatUser;
-      const name = btn.dataset.chatName;
-      if (uid === currentUser.uid) return toast('Ini barang lu sendiri 😅', 'error');
-      openDM(uid, name);
-    });
-  });
-  container.querySelectorAll('[data-delete]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      if (!confirm('Hapus?')) return;
-      try { await deleteDoc(doc(db, 'posts', btn.dataset.delete)); toast('🗑️ Dihapus', 'success'); }
-      catch (e) { toast('Gagal: ' + e.message, 'error'); }
-    });
-  });
-  container.querySelectorAll('[data-like]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      if (!currentUser) { navigate('auth'); return; }
-      const liked = btn.classList.contains('liked');
-      try {
-        await updateDoc(doc(db, 'posts', btn.dataset.like), {
-          likes: liked ? arrayRemove(currentUser.uid) : arrayUnion(currentUser.uid)
-        });
-      } catch (e) {}
-    });
-  });
-}
-
-function subscribeFeed() {
-  if (unsubscribeFeed) unsubscribeFeed();
-  const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'), limit(50));
-  unsubscribeFeed = onSnapshot(q, async (snap) => {
-    const list = $('feedList');
-    if (!list) return;
-    list.innerHTML = '';
-    if (snap.empty) { list.innerHTML = '<p style="padding:20px">Belum ada postingan.</p>'; return; }
-    for (const d of snap.docs) {
-      const p = d.data();
-      const closed = await checkRoomClosed('post_' + d.id);
-      const card = document.createElement('div');
-      card.className = 'post-card' + (closed ? ' closed' : '');
-      card.dataset.postId = d.id;
-      card.dataset.sellerId = p.sellerId;
-      card.dataset.sellerName = p.sellerName || 'Anonim';
-      card.innerHTML = postCardHTML(p, d.id);
-      if (closed) {
-        const stamp = document.createElement('div');
-        stamp.className = 'closed-stamp';
-        stamp.textContent = '⛔ DITUTUP';
-        stamp.title = closed.reason || '';
-        card.appendChild(stamp);
-      }
-      list.appendChild(card);
-    }
-    bindPostActions(list);
-  });
-}
-function subscribeHomeFeed() {
-  if (unsubscribeHomeFeed) unsubscribeHomeFeed();
-  const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'), limit(6));
-  unsubscribeHomeFeed = onSnapshot(q, (snap) => {
-    const list = $('homeFeed');
-    if (!list) return;
-    list.innerHTML = '';
-    if (snap.empty) { list.innerHTML = '<p style="padding:20px">Belum ada barang.</p>'; return; }
-    snap.forEach(d => {
-      const p = d.data();
-      const card = document.createElement('div');
-      card.className = 'post-card';
-      card.dataset.sellerId = p.sellerId;
-      card.dataset.sellerName = p.sellerName || 'Anonim';
-      card.innerHTML = postCardHTML(p, d.id);
-      list.appendChild(card);
-    });
-    bindPostActions(list);
-  });
-}
-function subscribeMyPosts() {
-  if (unsubscribeMyPosts) unsubscribeMyPosts();
-  if (!currentUser) return;
-  const q = query(collection(db, 'posts'), where('sellerId', '==', currentUser.uid), orderBy('createdAt', 'desc'));
-  unsubscribeMyPosts = onSnapshot(q, (snap) => {
-    const list = $('myPosts');
-    if (!list) return;
-    list.innerHTML = '';
-    if (snap.empty) { list.innerHTML = '<p style="padding:20px">Belum jualan apa-apa.</p>'; return; }
-    snap.forEach(d => {
-      const p = d.data();
-      const card = document.createElement('div');
-      card.className = 'post-card';
-      card.dataset.sellerId = p.sellerId;
-      card.dataset.sellerName = p.sellerName || 'Anonim';
-      card.innerHTML = postCardHTML(p, d.id);
-      list.appendChild(card);
-    });
-    bindPostActions(list);
-  });
-}
-
-// ============================================
-// ===== USERS =====
-// ============================================
-function subscribeUsers() {
-  if (unsubscribeUsers) unsubscribeUsers();
-  unsubscribeUsers = onSnapshot(collection(db, 'users'), (snap) => {
-    allUsers = {};
-    snap.forEach(u => { allUsers[u.id] = { uid: u.id, ...u.data() }; });
-    renderChatList();
-  });
-}
-
-// ============================================
-// ===== CHAT LIST =====
-// ============================================
-function subscribeChatList() {
-  if (unsubscribeChatList) unsubscribeChatList();
-  if (!currentUser) return;
-
-  unsubscribeChatList = onSnapshot(collection(db, 'chats'), (snap) => {
-    const chats = [];
-    snap.forEach(d => {
-      const c = d.data();
-      if (!c.members || !c.members.includes(currentUser.uid)) return;
-      if (c.type === 'channel') return;
-      chats.push({
-        id: d.id, type: c.type || 'dm', name: c.name || 'Chat',
-        members: c.members, admins: c.admins || [],
-        photoURL: c.photoURL || '', desc: c.desc || '',
-        lastMsg: c.lastMessage || '',
-        lastMsgAt: c.lastMessageAt,
-        lastSender: c.lastSender || '',
-        unread: c.unread?.[currentUser.uid] || 0
-      });
-    });
-    chats.sort((a, b) => (b.lastMsgAt?.seconds || 0) - (a.lastMsgAt?.seconds || 0));
-    allChats = chats;
-    renderChatList();
-
-    unreadCounts = {};
-    chats.forEach(c => { if (c.unread > 0) unreadCounts[c.id] = c.unread; });
-    updateTotalUnread();
-  });
-}
-
-function renderChatList() {
-  const list = $('waChatList');
-  if (!list || !currentUser) return;
-
-  let filtered = allChats;
-  if (currentChatFilter === 'dm') filtered = allChats.filter(c => c.type === 'dm');
-  else if (currentChatFilter === 'group') filtered = allChats.filter(c => c.type === 'group');
-  else if (currentChatFilter === 'users') {
-    const userList = Object.values(allUsers).filter(u => u.uid !== currentUser.uid);
-    if (userList.length === 0) {
-      list.innerHTML = '<p style="padding:20px;text-align:center;opacity:0.6">Belum ada user lain</p>';
-      return;
-    }
-    list.innerHTML = '';
-    userList.forEach(u => {
-      const name = u.username || u.email || 'User';
-      const isOnline = isUserOnline(u);
-      const el = document.createElement('div');
-      el.className = 'wa-chat-item';
-      el.innerHTML = `
-        <div style="position:relative">${avatarHTML(name, '', u.photoURL)}${isOnline ? '<div class="online-dot"></div>' : ''}</div>
-        <div class="wa-chat-info">
-          <div class="wa-chat-name">${escapeHtml(name)}</div>
-          <div class="wa-chat-preview">${isOnline ? '🟢 Online' : '⚫ Offline'}</div>
-        </div>
-      `;
-      el.addEventListener('click', () => openDM(u.uid, name));
-      list.appendChild(el);
-    });
-    return;
-  }
-
-  if (filtered.length === 0) {
-    list.innerHTML = '<p style="padding:20px;text-align:center;opacity:0.6">Belum ada chat.</p>';
-    return;
-  }
-
-  list.innerHTML = '';
-  filtered.forEach(c => {
-    const isGroup = c.type === 'group';
-    let displayName = c.name;
-    let avatar = '';
-    if (isGroup) {
-      const memberCount = c.members?.length || 0;
-      avatar = `<div class="wa-chat-avatar group">${c.photoURL ? `<img src="${c.photoURL}">` : '👥'}</div>`;
-      displayName = `${escapeHtml(c.name)} <span class="member-count">(${memberCount})</span>`;
-    } else {
-      const other = c.members.find(m => m !== currentUser.uid);
-      const u = allUsers[other];
-      const name = u?.username || u?.email || c.name || 'User';
-      const isOnline = isUserOnline(u);
-      avatar = `<div style="position:relative">${avatarHTML(name, '', u?.photoURL)}${isOnline ? '<div class="online-dot"></div>' : ''}</div>`;
-      displayName = escapeHtml(name);
-    }
-
-    let checkIcon = '';
-    if (!isGroup && c.lastSender === currentUser.uid && c.lastMsg) {
-      checkIcon = `<span class="check sent" style="margin-right:4px">✓✓</span>`;
-    }
-
-    const el = document.createElement('div');
-    el.className = 'wa-chat-item';
-    el.innerHTML = `
-      ${avatar}
-      <div class="wa-chat-info">
-        <div class="wa-chat-name">${isGroup ? '👥 ' : ''}${displayName}</div>
-        <div class="wa-chat-preview">${checkIcon}${escapeHtml(c.lastMsg || 'Belum ada pesan')}</div>
-      </div>
-      <div class="wa-chat-meta">
-        <div class="wa-chat-time">${c.lastMsgAt ? formatTime(c.lastMsgAt) : ''}</div>
-        ${c.unread > 0 ? `<div class="wa-badge">${c.unread > 99 ? '99+' : c.unread}</div>` : ''}
-      </div>
-    `;
-    el.addEventListener('click', () => {
-      if (isGroup) openGroup(c.id, c.name);
-      else {
-        const other = c.members.find(m => m !== currentUser.uid);
-        const u = allUsers[other];
-        const name = u?.username || u?.email || 'User';
-        openDM(other, name);
-      }
-    });
-    list.appendChild(el);
-  });
-}
-
-document.querySelectorAll('.chat-tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.chat-tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    currentChatFilter = tab.dataset.chattab;
-    renderChatList();
-  });
-});
-
-async function markChatRead(chatId) {
-  if (!currentUser) return;
-  try {
-    await updateDoc(doc(db, 'chats', chatId), {
-      [`unread.${currentUser.uid}`]: 0
-    });
-    unreadCounts[chatId] = 0;
-    updateTotalUnread();
-  } catch (e) {}
-}
-
-// ============================================
-// ===== OPEN CHAT =====
-// ============================================
-async function openDM(otherId, otherName) {
-  if (!currentUser) { navigate('auth'); return; }
-  if (otherId === currentUser.uid) return;
-
-  const chatId = [currentUser.uid, otherId].sort().join('_');
-  const ref = doc(db, 'chats', chatId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) {
-    await setDoc(ref, {
-      type: 'dm', members: [currentUser.uid, otherId],
-      createdAt: serverTimestamp(), lastMessage: '',
-      lastMessageAt: serverTimestamp(), unread: {}
-    });
-  }
-
-  currentChatTarget = { type: 'dm', id: chatId, otherId, name: otherName };
-  markChatRead(chatId);
-  showFullChat(otherName, '', false);
-  loadMessagesFor(chatId);
-}
-
-async function openGroup(groupId, name) {
-  const snap = await getDoc(doc(db, 'chats', groupId));
-  const data = snap.exists() ? snap.data() : {};
-  currentChatTarget = { type: 'group', id: groupId, name, data };
-  const members = data.members?.length || 0;
-  const isAdmin = data.admins?.includes(currentUser.uid);
-  showFullChat(name, `👥 ${members} anggota ${isAdmin ? '• Admin' : ''}`, true);
-  markChatRead(groupId);
-  loadMessagesFor(groupId);
-  checkCurrentChatClosed();
-}
-
-async function openChannel(channelId, name) {
-  const snap = await getDoc(doc(db, 'chats', channelId));
-  const data = snap.exists() ? snap.data() : {};
-  currentChatTarget = { type: 'channel', id: channelId, name, data };
-  const members = data.members?.length || 0;
-  const isAdmin = data.admins?.includes(currentUser.uid);
-  showFullChat(name, `📻 ${members} pengikut ${isAdmin ? '• Admin' : ''}`, true);
-  markChatRead(channelId);
-  loadMessagesFor(channelId);
-  checkCurrentChatClosed();
-}
-
-function showFullChat(name, status, isGroupOrChannel) {
-  $('fullChat')?.classList.remove('hidden');
-  const n = $('fcName'); if (n) n.textContent = name;
-  const s = $('fcStatus'); if (s) s.textContent = status;
-  const aw = $('fcAvatarWrap');
-  if (aw) {
-    aw.innerHTML = isGroupOrChannel
-      ? `<div class="wa-chat-avatar group" style="width:40px;height:40px;font-size:1.2rem">👥</div>`
-      : avatarHTML(name, 'small');
-  }
-
-  if (aw) aw.onclick = null;
-  const info = $('fcName')?.parentElement;
-  if (info) info.onclick = null;
-
-  if (currentChatTarget?.type === 'dm') {
-    const other = allUsers[currentChatTarget.otherId];
-    const isOnline = isUserOnline(other);
-    if (s) s.textContent = isOnline ? '🟢 Online' : '⚫ Offline';
-    if (aw) aw.onclick = () => showUserProfile(currentChatTarget.otherId);
-    if (info) info.onclick = () => showUserProfile(currentChatTarget.otherId);
-  }
-
-  const callBtn = $('fcCallBtn');
-  if (callBtn) callBtn.style.display = (currentChatTarget?.type === 'dm') ? '' : 'none';
-}
-
-function closeFullChat() {
-  $('fullChat')?.classList.add('hidden');
-  $('fcMenuDropdown')?.classList.add('hidden');
-  if (unsubscribeChat) { unsubscribeChat(); unsubscribeChat = null; }
-  currentChatTarget = null;
-}
-$('fcBack')?.addEventListener('click', closeFullChat);
-
-$('fcMenu')?.addEventListener('click', (e) => {
-  e.stopPropagation();
-  const dd = $('fcMenuDropdown');
-  if (!dd) return;
-  dd.classList.toggle('hidden');
-
-  const isGroup = currentChatTarget?.type === 'group';
-  const isChannel = currentChatTarget?.type === 'channel';
-  const isAdmin = currentChatTarget?.data?.admins?.includes(currentUser.uid);
-
-  dd.querySelectorAll('.group-only').forEach(el => el.style.display = isGroup ? '' : 'none');
-  dd.querySelectorAll('.channel-only').forEach(el => el.style.display = isChannel ? '' : 'none');
-  dd.querySelectorAll('.admin-only').forEach(el => el.style.display = isAdmin ? '' : 'none');
-  const cl = $('menuCopyLink');
-  if (cl) cl.style.display = (isGroup && isAdmin) ? '' : 'none';
-});
-
-document.addEventListener('click', (e) => {
-  if (!$('fcMenuDropdown')?.contains(e.target) && e.target.id !== 'fcMenu') {
-    $('fcMenuDropdown')?.classList.add('hidden');
-  }
-});
-
-$('menuViewProfile')?.addEventListener('click', () => {
-  $('fcMenuDropdown')?.classList.add('hidden');
-  if (currentChatTarget?.type === 'dm') showUserProfile(currentChatTarget.otherId);
-});
-$('menuViewMembers')?.addEventListener('click', () => {
-  $('fcMenuDropdown')?.classList.add('hidden');
-  showMembers();
-});
-$('menuEditGroup')?.addEventListener('click', () => {
-  $('fcMenuDropdown')?.classList.add('hidden');
-  showEditGroup();
-});
-$('menuCopyLink')?.addEventListener('click', () => {
-  $('fcMenuDropdown')?.classList.add('hidden');
-  if (!currentChatTarget) return;
-  const link = `${location.origin}${location.pathname}#group=${currentChatTarget.id}`;
-  navigator.clipboard.writeText(link).then(() => toast('🔗 Link dicopy!', 'success'));
-});
-$('menuCopyLinkChannel')?.addEventListener('click', () => {
-  $('fcMenuDropdown')?.classList.add('hidden');
-  if (!currentChatTarget) return;
-  const link = `${location.origin}${location.pathname}#channel=${currentChatTarget.id}`;
-  navigator.clipboard.writeText(link).then(() => toast('🔗 Link dicopy!', 'success'));
-});
-$('menuLeave')?.addEventListener('click', async () => {
-  $('fcMenuDropdown')?.classList.add('hidden');
-  if (!currentChatTarget) return;
-  if (!confirm('Yakin keluar?')) return;
-  try {
-    await updateDoc(doc(db, 'chats', currentChatTarget.id), {
-      members: arrayRemove(currentUser.uid)
-    });
-    toast('🚪 Keluar', 'success');
-    closeFullChat();
-  } catch (e) { toast('Gagal: ' + e.message, 'error'); }
-});
-
-// ============================================
-// ===== LOAD MESSAGES =====
-// ============================================
-function loadMessagesFor(chatId) {
-  if (unsubscribeChat) unsubscribeChat();
-  const msgsEl = $('fcMessages');
-  if (!msgsEl) return;
-  msgsEl.innerHTML = '<p style="text-align:center;opacity:0.6;padding:20px">Memuat...</p>';
-
-  const q = query(collection(db, 'chats', chatId, 'messages'), orderBy('createdAt', 'asc'), limit(200));
-  unsubscribeChat = onSnapshot(q, (snap) => {
-    msgsEl.innerHTML = '';
-    if (snap.empty) {
-      msgsEl.innerHTML = '<p style="text-align:center;opacity:0.6;padding:20px">Belum ada pesan.</p>';
-      return;
-    }
-    snap.forEach(d => msgsEl.appendChild(buildMessage(d.data(), d.id)));
-    msgsEl.scrollTop = msgsEl.scrollHeight;
-
-    markChatRead(chatId);
-
-    // Tandai read
-    const batch = writeBatch(db);
-    snap.forEach(d => {
-      const m = d.data();
-      if (m.senderId !== currentUser.uid && !m.readBy?.[currentUser.uid]) {
-        batch.update(d.ref, { [`readBy.${currentUser.uid}`]: true });
-      }
-    });
-    batch.commit().catch(() => {});
-  }, (err) => {
-    msgsEl.innerHTML = `<p style="text-align:center;color:red;padding:20px">${translateErr(err.code)}</p>`;
-  });
-}
-
-function buildMessage(m, msgId) {
-  const div = document.createElement('div');
-  const isMe = m.senderId === currentUser.uid;
-  div.className = 'msg ' + (isMe ? 'me' : 'other');
-
-  const time = m.createdAt
-    ? new Date(m.createdAt.seconds * 1000).toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit'})
-    : '';
-
-  let senderLabel = '';
-  if (!isMe && (currentChatTarget?.type === 'group' || currentChatTarget?.type === 'channel')) {
-    senderLabel = `<div style="font-size:0.7rem;opacity:0.8;margin-bottom:3px"><b>${escapeHtml(m.senderName||'User')}</b></div>`;
-  }
-
-  let replyHTML = '';
-  if (m.replyTo) {
-    replyHTML = `<div class="reply-quote"><b>${escapeHtml(m.replyTo.name||'User')}</b><div>${escapeHtml((m.replyTo.text||'').substring(0,60))}</div></div>`;
-  }
-
-  let content = '';
-  if (m.type === 'image') {
-    content = `<img src="${m.url}" alt="gambar">`;
-    setTimeout(() => {
-      const img = div.querySelector('img');
-      if (img) img.addEventListener('click', () => window.openImage(m.url));
-    }, 0);
-    if (m.text) content = `<p>${escapeHtml(m.text)}</p>` + content;
-  } else if (m.type === 'voice') {
-    content = `<div>🎤 VN (${m.duration||0}s)</div><audio controls preload="metadata" src="${m.url}"></audio>`;
-  } else if (m.type === 'file') {
-    content = `<a href="${m.url}" target="_blank" download="${escapeHtml(m.fileName)}" class="file-link">📎 ${escapeHtml(m.fileName)} <span style="opacity:0.7">(${formatSize(m.size)})</span></a>`;
-  } else {
-    content = `<span>${escapeHtml(m.text||'')}</span>`;
-  }
-
-  let checkHTML = '';
-  if (isMe && currentChatTarget?.type === 'dm') {
-    const otherId = currentChatTarget.otherId;
-    const otherUser = allUsers[otherId];
-    const isOtherOnline = isUserOnline(otherUser);
-    const isRead = m.readBy && m.readBy[otherId];
-
-    if (isRead) checkHTML = `<span class="check read">✓✓</span>`;
-    else if (isOtherOnline) checkHTML = `<span class="check delivered">✓✓</span>`;
-    else checkHTML = `<span class="check sent">✓</span>`;
-  }
-
-  div.innerHTML = senderLabel + replyHTML + content + `<span class="time">${time}${checkHTML}</span>`;
-  div.addEventListener('dblclick', () => setReply(m, msgId));
-  return div;
-}
-
-function setReply(m, msgId) {
-  replyTo = {
-    msgId,
-    name: m.senderId === currentUser.uid ? 'Lu' : (m.senderName || currentChatTarget?.name || 'User'),
-    text: m.text || (m.type === 'image' ? '[Gambar]' : m.type === 'voice' ? '[VN]' : '[File]')
-  };
-  $('fcReplyBar')?.classList.remove('hidden');
-  const n = $('fcReplyName'); if (n) n.textContent = '↩ ' + replyTo.name;
-  const t = $('fcReplyText'); if (t) t.textContent = replyTo.text;
-  $('fcChatInput')?.focus();
-}
-function clearReply() {
-  replyTo = null;
-  $('fcReplyBar')?.classList.add('hidden');
-}
-$('fcReplyClose')?.addEventListener('click', clearReply);
-
-// ============================================
-// ===== SEND TEXT =====
-// ============================================
-$('fcChatForm')?.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  if (!currentUser) { navigate('auth'); return; }
-  if (!currentChatTarget) return toast('Buka chat dulu!', 'error');
-
-  // Cek closed room
-  const closedInfo = await checkCurrentChatClosed();
-  if (closedInfo) return toast(`⛔ Room ditutup: ${closedInfo.reason}`, 'error');
-
-  if (currentChatTarget.type === 'channel') {
-    const snap = await getDoc(doc(db, 'chats', currentChatTarget.id));
-    const data = snap.data();
-    if (!data.admins?.includes(currentUser.uid)) {
-      return toast('❌ Cuma admin yang bisa posting di saluran!', 'error');
-    }
-  }
-
-  const input = $('fcChatInput');
-  const text = input.value.trim();
-  if (!text) return;
-  input.value = '';
-
-  try {
-    await addDoc(collection(db, 'chats', currentChatTarget.id, 'messages'), {
-      type: 'text', text, replyTo,
-      senderId: currentUser.uid,
-      senderName: currentUser.displayName || 'Anonim',
-      readBy: {}, createdAt: serverTimestamp()
-    });
-    await updateChatAfterSend(currentChatTarget.id, text.substring(0, 50));
-    clearReply();
-  } catch (err) {
-    toast('Gagal: ' + err.message, 'error');
-    input.value = text;
-  }
-});
-
-async function updateChatAfterSend(chatId, lastMsg) {
-  const chatRef = doc(db, 'chats', chatId);
-  const chatSnap = await getDoc(chatRef);
-  const chatData = chatSnap.data() || {};
-  const members = chatData.members || [];
-  const unreadUpdate = {};
-  members.forEach(uid => {
-    if (uid !== currentUser.uid) {
-      unreadUpdate[`unread.${uid}`] = (chatData.unread?.[uid] || 0) + 1;
-    }
-  });
-
-  await updateDoc(chatRef, {
-    lastMessage: lastMsg,
-    lastMessageAt: serverTimestamp(),
-    lastSender: currentUser.uid,
-    type: currentChatTarget.type,
-    ...unreadUpdate
-  });
-}
-
-// ============================================
-// ===== MEDIA HELPERS =====
-// ============================================
-window.openImage = (url) => {
-  const modal = document.createElement('div');
-  modal.id = 'imgPreviewModal';
-  modal.innerHTML = `<img src="${url}">`;
-  modal.addEventListener('click', () => modal.remove());
-  document.body.appendChild(modal);
-};
-
-function showUploadBar(show, pct = 0, label = 'Processing...') {
-  const bar = $('fcUploadBar');
-  if (!bar) return;
-  const fill = $('fcUploadFill');
-  const text = $('fcUploadText');
-  if (show) {
-    bar.classList.remove('hidden');
-    if (fill) fill.style.width = pct + '%';
-    if (text) text.textContent = `${label} ${Math.round(pct)}%`;
-  } else {
-    bar.classList.add('hidden');
-    if (fill) fill.style.width = '0%';
-  }
-}
-
-function compressImage(file, maxSize = 800, quality = 0.7) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let { width, height } = img;
-        if (width > height && width > maxSize) { height = (height/width)*maxSize; width = maxSize; }
-        else if (height > maxSize) { width = (width/height)*maxSize; height = maxSize; }
-        canvas.width = width; canvas.height = height;
-        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
-      };
-      img.onerror = () => reject(new Error('Gambar tidak valid'));
-      img.src = e.target.result;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-// Send Image
-$('fcImgBtn')?.addEventListener('click', () => $('fcImgInput').click());
-$('fcImgInput')?.addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  e.target.value = '';
-  if (!file || !currentChatTarget) return;
-  if (file.size > 10*1024*1024) return toast('Maks 10 MB!', 'error');
-
-  const closedInfo = await checkCurrentChatClosed();
-  if (closedInfo) return toast('⛔ Room ditutup', 'error');
-
-  try {
-    showUploadBar(true, 30, 'Compress...');
-    const dataUrl = await compressImage(file, 800, 0.7);
-    if (dataUrl.length > 900*1024) return toast('Gambar terlalu besar', 'error');
-
-    await addDoc(collection(db, 'chats', currentChatTarget.id, 'messages'), {
-      type: 'image', url: dataUrl, text: '', replyTo,
-      senderId: currentUser.uid,
-      senderName: currentUser.displayName || 'Anonim',
-      readBy: {}, createdAt: serverTimestamp()
-    });
-    await updateChatAfterSend(currentChatTarget.id, '📷 Foto');
-    clearReply();
-  } catch (err) { toast('Gagal: ' + err.message, 'error'); }
-  finally { setTimeout(() => showUploadBar(false), 500); }
-});
-
-// Send File
-$('fcFileBtn')?.addEventListener('click', () => $('fcFileInput').click());
-$('fcFileInput')?.addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  e.target.value = '';
-  if (!file || !currentChatTarget) return;
-  if (file.size > 700*1024) return toast('Maks 700 KB', 'error');
-
-  const closedInfo = await checkCurrentChatClosed();
-  if (closedInfo) return toast('⛔ Room ditutup', 'error');
-
-  try {
-    showUploadBar(true, 50, 'Encode...');
-    const dataUrl = await fileToBase64(file);
-    await addDoc(collection(db, 'chats', currentChatTarget.id, 'messages'), {
-      type: 'file', url: dataUrl, fileName: file.name, size: file.size, mime: file.type, replyTo,
-      senderId: currentUser.uid,
-      senderName: currentUser.displayName || 'Anonim',
-      readBy: {}, createdAt: serverTimestamp()
-    });
-    await updateChatAfterSend(currentChatTarget.id, '📎 ' + file.name.substring(0, 30));
-    clearReply();
-  } catch (err) { toast('Gagal: ' + err.message, 'error'); }
-  finally { setTimeout(() => showUploadBar(false), 500); }
-});
-
-// Voice Note
-let mediaRecorder = null;
-let audioChunks = [];
-let recStartTime = 0;
-let recTimer = null;
-let recStream = null;
-let cancelled = false;
-const MAX_VN_SECONDS = 60;
-
-$('fcVnBtn')?.addEventListener('click', async () => {
-  if (!currentUser) { navigate('auth'); return; }
-  if (!currentChatTarget) return toast('Buka chat dulu!', 'error');
-  if (mediaRecorder?.state === 'recording') return;
-
-  try {
-    recStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    let mimeType = 'audio/webm';
-    if (!MediaRecorder.isTypeSupported(mimeType)) {
-      if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
-      else if (MediaRecorder.isTypeSupported('audio/ogg')) mimeType = 'audio/ogg';
-      else mimeType = '';
-    }
-    mediaRecorder = mimeType
-      ? new MediaRecorder(recStream, { mimeType, audioBitsPerSecond: 32000 })
-      : new MediaRecorder(recStream, { audioBitsPerSecond: 32000 });
-
-    audioChunks = []; cancelled = false;
-    mediaRecorder.addEventListener('dataavailable', ev => { if (ev.data.size > 0) audioChunks.push(ev.data); });
-    mediaRecorder.addEventListener('stop', async () => {
-      recStream?.getTracks().forEach(t => t.stop());
-      clearInterval(recTimer);
-      $('fcRecordingBar')?.classList.add('hidden');
-      $('fcVnBtn')?.classList.remove('recording');
-      if (cancelled || audioChunks.length === 0) return;
-
-      const duration = Math.max(1, Math.round((Date.now() - recStartTime)/1000));
-      const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
-      if (blob.size > 700*1024) return toast('VN terlalu besar', 'error');
-
-      try {
-        showUploadBar(true, 50, 'Encode VN...');
-        const dataUrl = await fileToBase64(blob);
-        await addDoc(collection(db, 'chats', currentChatTarget.id, 'messages'), {
-          type: 'voice', url: dataUrl, duration, replyTo,
-          senderId: currentUser.uid,
-          senderName: currentUser.displayName || 'Anonim',
-          readBy: {}, createdAt: serverTimestamp()
-        });
-        await updateChatAfterSend(currentChatTarget.id, '🎤 VN');
-        clearReply();
-      } catch (err) { toast('Gagal: ' + err.message, 'error'); }
-      finally { setTimeout(() => showUploadBar(false), 500); }
-    });
-
-    mediaRecorder.start();
-    recStartTime = Date.now();
-    $('fcRecordingBar')?.classList.remove('hidden');
-    $('fcVnBtn')?.classList.add('recording');
-    const t = $('fcRecTime'); if (t) t.textContent = '0:00';
-    recTimer = setInterval(() => {
-      const s = Math.round((Date.now() - recStartTime)/1000);
-      const rt = $('fcRecTime'); if (rt) rt.textContent = `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
-      if (s >= MAX_VN_SECONDS && mediaRecorder.state === 'recording') mediaRecorder.stop();
-    }, 200);
-  } catch (err) { toast('Mic error: ' + err.message, 'error'); }
-});
-$('fcStopRec')?.addEventListener('click', () => { if (mediaRecorder?.state === 'recording') mediaRecorder.stop(); });
-$('fcCancelRec')?.addEventListener('click', () => {
-  if (mediaRecorder?.state === 'recording') { cancelled = true; audioChunks = []; mediaRecorder.stop(); }
-});
-
-// ============================================
-// ===== NOTIFIKASI GLOBAL SEMUA CHAT =====
-// ============================================
-function listenGlobalNotifications() {
-  if (!currentUser) return;
-  if (window._notifUnsub) window._notifUnsub();
-
-  const q = query(collection(db, 'chats'));
-  window._notifUnsub = onSnapshot(q, (snap) => {
-    snap.docChanges().forEach(change => {
-      const c = change.doc.data();
-      if (!c.members?.includes(currentUser.uid)) return;
-      if (change.type !== 'modified') return;
-      const chatId = change.doc.id;
-      if (currentChatTarget?.id === chatId) return;
-
-      const unread = c.unread?.[currentUser.uid] || 0;
-      if (unread > 0) { unreadCounts[chatId] = unread; updateTotalUnread(); }
-
-      if (c.lastSender && c.lastSender !== currentUser.uid && c.lastMessageAt) {
-        const diff = (Date.now() - c.lastMessageAt.seconds * 1000) / 1000;
-        if (diff < 5) {
-          playBeep();
-          let displayName = c.name || 'Chat';
-          if (c.type !== 'group') {
-            const other = c.members.find(m => m !== currentUser.uid);
-            const u = allUsers[other];
-            displayName = u?.username || u?.email || 'User';
-          }
-          showNotification('💬 ' + displayName, c.lastMessage || 'Pesan baru');
-        }
-      }
-    });
-  });
-}
+// Ask from a real user interaction so mobile browsers do not silently block it.
+document.addEventListener('pointerdown', enableNotificationsFromUserGesture, { passive: true });
 
 // ============================================
 // ===== USER PROFILE =====
@@ -2151,11 +1142,55 @@ const ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' }
-  ]
+  ],
+  iceCandidatePoolSize: 10
 };
 
 function makeCallId(uid1, uid2) {
   return [uid1, uid2].sort().join('_') + '_' + Date.now();
+}
+
+function normalizeCandidate(c) {
+  if (!c) return null;
+  const x = typeof c.toJSON === 'function' ? c.toJSON() : c;
+  return {
+    candidate: x.candidate,
+    sdpMid: x.sdpMid ?? null,
+    sdpMLineIndex: x.sdpMLineIndex ?? null,
+    usernameFragment: x.usernameFragment ?? null
+  };
+}
+
+async function addRemoteCandidates(pc, candidates = []) {
+  if (!pc || !Array.isArray(candidates)) return;
+  for (const c of candidates) {
+    if (!c?.candidate) continue;
+    try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) {}
+  }
+}
+
+function setCallConnectionHandlers() {
+  if (!peerConnection) return;
+  peerConnection.onconnectionstatechange = () => {
+    const state = peerConnection?.connectionState;
+    const st = $('callStatus');
+    if (state === 'connected') {
+      if (st) st.textContent = 'Tersambung';
+      startCallTimer();
+    } else if (state === 'connecting') {
+      if (st) st.textContent = 'Menghubungkan...';
+    } else if (state === 'disconnected') {
+      if (st) st.textContent = 'Koneksi terputus...';
+    } else if (state === 'failed') {
+      if (st) st.textContent = 'Koneksi gagal';
+      toast('Koneksi telepon gagal. Coba lagi.', 'error');
+    }
+  };
+  peerConnection.oniceconnectionstatechange = () => {
+    if (peerConnection?.iceConnectionState === 'failed') {
+      peerConnection.restartIce?.();
+    }
+  };
 }
 
 async function startCall() {
@@ -2163,49 +1198,68 @@ async function startCall() {
   if (!currentChatTarget || currentChatTarget.type !== 'dm') {
     return toast('Cuma bisa telepon di chat pribadi', 'error');
   }
+  if (!navigator.mediaDevices?.getUserMedia || !window.RTCPeerConnection) {
+    return toast('Browser ini tidak mendukung telepon WebRTC.', 'error');
+  }
 
   const targetUid = currentChatTarget.otherId;
-  const targetName = currentChatTarget.name;
+  const targetName = currentChatTarget.name || 'User';
   const callId = makeCallId(currentUser.uid, targetUid);
+  const callRef = doc(db, 'calls', callId);
+  let callDocReady = false;
+  const pendingCallerCandidates = [];
 
   try {
-    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
     peerConnection = new RTCPeerConnection(ICE_SERVERS);
+    setCallConnectionHandlers();
     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
-    peerConnection.ontrack = (event) => {
+    peerConnection.ontrack = async (event) => {
       if (event.streams[0]) {
         remoteStream = event.streams[0];
         const audio = $('remoteAudio');
-        if (audio) audio.srcObject = remoteStream;
+        if (audio) {
+          audio.srcObject = remoteStream;
+          audio.muted = false;
+          try { await audio.play(); } catch (e) {}
+        }
       }
     };
 
-    const callerCandidates = [];
-    peerConnection.onicecandidate = (event) => {
-      if (event.candidate) {
-        callerCandidates.push(event.candidate.toJSON());
-        updateDoc(doc(db, 'calls', callId), {
-          callerCandidates: callerCandidates.map(c => ({
-            candidate: c.candidate, sdpMid: c.sdpMid, sdpMLineIndex: c.sdpMLineIndex
-          }))
-        }).catch(() => {});
+    peerConnection.onicecandidate = async (event) => {
+      const c = normalizeCandidate(event.candidate);
+      if (!c) return;
+      if (!callDocReady) {
+        pendingCallerCandidates.push(c);
+        return;
       }
+      try {
+        await updateDoc(callRef, { callerCandidates: arrayUnion(c) });
+      } catch (e) {}
     };
 
-    const offer = await peerConnection.createOffer();
+    const offer = await peerConnection.createOffer({ offerToReceiveAudio: true });
     await peerConnection.setLocalDescription(offer);
 
-    await setDoc(doc(db, 'calls', callId), {
+    // Create the signaling document BEFORE flushing ICE candidates.
+    await setDoc(callRef, {
       callId,
       caller: currentUser.uid,
-      callerName: currentUser.displayName || 'Anonim',
+      callerName: currentUser.displayName || currentUser.email || 'Anonim',
       receiver: targetUid,
       receiverName: targetName,
       offer: { type: offer.type, sdp: offer.sdp },
+      callerCandidates: [],
+      receiverCandidates: [],
       status: 'calling',
       createdAt: serverTimestamp()
     });
+    callDocReady = true;
+    if (pendingCallerCandidates.length) {
+      await updateDoc(callRef, { callerCandidates: arrayUnion(...pendingCallerCandidates) });
+      pendingCallerCandidates.length = 0;
+    }
 
     currentCallId = callId;
     isInCall = true;
@@ -2213,13 +1267,15 @@ async function startCall() {
     listenCallAnswer(callId, 'caller');
 
     setTimeout(() => {
-      if (isInCall && !callStartTime) {
-        toast('❌ Gak diangkat', 'error');
+      if (isInCall && currentCallId === callId && !callStartTime) {
+        toast('Tidak diangkat', 'error');
         endCall();
       }
     }, 60000);
   } catch (err) {
-    toast('Gagal telepon: ' + err.message, 'error');
+    console.error('startCall:', err);
+    toast('Gagal telepon: ' + (err?.message || err), 'error');
+    try { await updateDoc(callRef, { status: 'ended', endedAt: serverTimestamp() }); } catch (e) {}
     cleanupCall();
   }
 }
@@ -2231,70 +1287,113 @@ function listenCallAnswer(callId, role) {
     const data = snap.data();
 
     if (data.status === 'ended' || data.status === 'declined') {
-      if (role === 'caller') toast(data.status === 'declined' ? '❌ Ditolak' : '📞 Berakhir', 'error');
+      if (role === 'caller') toast(data.status === 'declined' ? 'Panggilan ditolak' : 'Panggilan berakhir', 'error');
       cleanupCall();
       return;
     }
 
-    if (role === 'caller' && data.status === 'accepted' && data.answer && !callStartTime) {
+    if (!peerConnection) return;
+
+    if (role === 'caller' && data.status === 'accepted' && data.answer && !peerConnection.currentRemoteDescription) {
       try {
         await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
-        const st = $('callStatus'); if (st) st.textContent = 'Tersambung';
-        startCallTimer();
-        if (data.receiverCandidates) {
-          for (const c of data.receiverCandidates) {
-            if (c) try { await peerConnection.addIceCandidate(new RTCIceCandidate(c)); } catch (e) {}
-          }
-        }
-      } catch (err) {}
+        await addRemoteCandidates(peerConnection, data.receiverCandidates || []);
+        const st = $('callStatus'); if (st) st.textContent = 'Menghubungkan...';
+      } catch (err) {
+        console.error('setRemoteDescription caller:', err);
+      }
     }
+
+    // Receiver must also consume caller ICE candidates after accepting.
+    if (role === 'receiver' && data.callerCandidates) {
+      const seen = peerConnection.__seenCallerCandidates || new Set();
+      peerConnection.__seenCallerCandidates = seen;
+      for (const c of data.callerCandidates) {
+        const key = `${c.candidate}|${c.sdpMid}|${c.sdpMLineIndex}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        try { await peerConnection.addIceCandidate(new RTCIceCandidate(c)); } catch (e) {}
+      }
+    }
+
+    if (role === 'caller' && data.receiverCandidates) {
+      const seen = peerConnection.__seenReceiverCandidates || new Set();
+      peerConnection.__seenReceiverCandidates = seen;
+      for (const c of data.receiverCandidates) {
+        const key = `${c.candidate}|${c.sdpMid}|${c.sdpMLineIndex}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        try { await peerConnection.addIceCandidate(new RTCIceCandidate(c)); } catch (e) {}
+      }
+    }
+  }, (err) => {
+    console.error('call listener:', err);
+    toast('Sinyal telepon gagal: ' + err.message, 'error');
   });
 }
 
 async function acceptCall() {
-  if (!pendingCallData || !currentUser) return;
+  if (!pendingCallData || !currentUser || !currentCallId) return;
+  const callId = currentCallId;
+  const callRef = doc(db, 'calls', callId);
+  let callDocReady = false;
+  const pendingReceiverCandidates = [];
+
   try {
     $('incomingCallModal')?.classList.add('hidden');
-    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    if (!navigator.mediaDevices?.getUserMedia) throw new Error('Browser tidak mendukung mikrofon.');
+
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
     peerConnection = new RTCPeerConnection(ICE_SERVERS);
+    setCallConnectionHandlers();
     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
-    peerConnection.ontrack = (event) => {
+    peerConnection.ontrack = async (event) => {
       if (event.streams[0]) {
         remoteStream = event.streams[0];
         const audio = $('remoteAudio');
-        if (audio) audio.srcObject = remoteStream;
+        if (audio) {
+          audio.srcObject = remoteStream;
+          audio.muted = false;
+          try { await audio.play(); } catch (e) {}
+        }
       }
     };
 
-    const receiverCandidates = [];
-    peerConnection.onicecandidate = (event) => {
-      if (event.candidate) {
-        receiverCandidates.push(event.candidate.toJSON());
-        updateDoc(doc(db, 'calls', currentCallId), {
-          receiverCandidates: receiverCandidates.map(c => ({
-            candidate: c.candidate, sdpMid: c.sdpMid, sdpMLineIndex: c.sdpMLineIndex
-          }))
-        }).catch(() => {});
+    peerConnection.onicecandidate = async (event) => {
+      const c = normalizeCandidate(event.candidate);
+      if (!c) return;
+      if (!callDocReady) {
+        pendingReceiverCandidates.push(c);
+        return;
       }
+      try { await updateDoc(callRef, { receiverCandidates: arrayUnion(c) }); } catch (e) {}
     };
 
     await peerConnection.setRemoteDescription(new RTCSessionDescription(pendingCallData.offer));
+    await addRemoteCandidates(peerConnection, pendingCallData.callerCandidates || []);
+
     const answer = await peerConnection.createAnswer();
     await peerConnection.setLocalDescription(answer);
 
-    await updateDoc(doc(db, 'calls', currentCallId), {
+    await updateDoc(callRef, {
       answer: { type: answer.type, sdp: answer.sdp },
       status: 'accepted',
       acceptedAt: serverTimestamp()
     });
+    callDocReady = true;
+    if (pendingReceiverCandidates.length) {
+      await updateDoc(callRef, { receiverCandidates: arrayUnion(...pendingReceiverCandidates) });
+      pendingReceiverCandidates.length = 0;
+    }
 
     isInCall = true;
-    showCallScreen(pendingCallData.callerName, 'Tersambung');
-    startCallTimer();
-    listenCallAnswer(currentCallId, 'receiver');
+    showCallScreen(pendingCallData.callerName || 'User', 'Menghubungkan...');
+    listenCallAnswer(callId, 'receiver');
   } catch (err) {
-    toast('Gagal terima: ' + err.message, 'error');
+    console.error('acceptCall:', err);
+    toast('Gagal terima: ' + (err?.message || err), 'error');
+    try { await updateDoc(callRef, { status: 'ended', endedAt: serverTimestamp() }); } catch (e) {}
     cleanupCall();
   }
 }
@@ -2307,9 +1406,10 @@ async function declineCall() {
 }
 
 async function endCall() {
-  if (currentCallId) {
+  const callId = currentCallId;
+  if (callId) {
     try {
-      await updateDoc(doc(db, 'calls', currentCallId), {
+      await updateDoc(doc(db, 'calls', callId), {
         status: 'ended', endedAt: serverTimestamp()
       });
     } catch (e) {}
@@ -2332,7 +1432,10 @@ function cleanupCall() {
   $('callScreen')?.classList.add('hidden');
   $('incomingCallModal')?.classList.add('hidden');
   const audio = $('remoteAudio');
-  if (audio) audio.srcObject = null;
+  if (audio) {
+    audio.pause?.();
+    audio.srcObject = null;
+  }
 }
 
 function startCallTimer() {
@@ -2360,26 +1463,41 @@ function listenIncomingCalls() {
   if (!currentUser) return;
   if (unsubscribeIncomingCall) unsubscribeIncomingCall();
 
+  // Avoid the composite-index requirement from the previous
+  // receiver+status+orderBy query. Filter the status client-side.
   const q = query(
     collection(db, 'calls'),
-    where('receiver', '==', currentUser.uid),
-    where('status', '==', 'calling'),
-    orderBy('createdAt', 'desc'),
-    limit(1)
+    where('receiver', '==', currentUser.uid)
   );
 
   unsubscribeIncomingCall = onSnapshot(q, (snap) => {
-    if (snap.empty || isInCall) return;
+    if (isInCall) return;
+
+    let newest = null;
     snap.forEach(d => {
       const data = d.data();
-      if (!data.offer) return;
-      if (data.createdAt && (Date.now() - data.createdAt.seconds * 1000) > 60000) return;
-      currentCallId = d.id;
-      pendingCallData = data;
-      const av = $('incomingAvatar'); if (av) av.textContent = getInitial(data.callerName);
-      const n = $('incomingName'); if (n) n.textContent = data.callerName;
-      $('incomingCallModal')?.classList.remove('hidden');
+      if (data.status !== 'calling' || !data.offer) return;
+      if (data.createdAt?.seconds && (Date.now() - data.createdAt.seconds * 1000) > 60000) return;
+      if (!newest || (data.createdAt?.seconds || 0) > (newest.data.createdAt?.seconds || 0)) {
+        newest = { id: d.id, data };
+      }
     });
+
+    if (!newest) return;
+    currentCallId = newest.id;
+    pendingCallData = newest.data;
+    const av = $('incomingAvatar'); if (av) av.textContent = getInitial(newest.data.callerName);
+    const n = $('incomingName'); if (n) n.textContent = newest.data.callerName || 'User';
+    $('incomingCallModal')?.classList.remove('hidden');
+    playBeep();
+    if (navigator.vibrate) navigator.vibrate([250, 150, 250, 150, 400]);
+    showNotification('Panggilan masuk', `${newest.data.callerName || 'User'} sedang menelepon`, {
+      tag: `incoming-call-${newest.id}`,
+      data: { type: 'call', callId: newest.id }
+    });
+  }, (err) => {
+    console.error('incoming call listener:', err);
+    toast('Listener telepon gagal: ' + err.message, 'error');
   });
 }
 
@@ -2404,10 +1522,15 @@ $('muteBtn')?.addEventListener('click', () => {
 
 $('speakerBtn')?.addEventListener('click', () => {
   isSpeaker = !isSpeaker;
+  const audio = $('remoteAudio');
+  if (audio && 'setSinkId' in audio) {
+    // Mobile browsers generally route media to the active audio output.
+    // Keep the state/UI without forcing an invalid sink id.
+    audio.setSinkId('').catch(() => {});
+  }
   $('speakerBtn')?.classList.toggle('active', isSpeaker);
   const s = $('speakerBtn'); if (s) s.textContent = isSpeaker ? '🔊' : '🔉';
 });
-
 
 // ============================================
 // ===== DEPLOY HTML TO VERCEL =====
