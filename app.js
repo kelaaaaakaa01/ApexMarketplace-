@@ -307,20 +307,44 @@ async function checkCurrentChatClosed() {
 // ============================================
 // ===== NOTIFIKASI =====
 // ============================================
-function requestNotificationPermission() {
-  if ('Notification' in window && Notification.permission === 'default') {
-    Notification.requestPermission();
+async function requestNotificationPermission() {
+  if (!('Notification' in window)) return 'denied';
+
+  try {
+    if (Notification.permission === 'default') {
+      return await Notification.requestPermission();
+    }
+    return Notification.permission;
+  } catch (e) {
+    return 'denied';
   }
 }
-function showNotification(title, body) {
-  if ('Notification' in window && Notification.permission === 'granted') {
-    try {
-      new Notification(title, {
-        body,
-        icon: 'https://via.placeholder.com/64/FFD93D/000?text=A'
-      });
-    } catch (e) {}
-  }
+
+async function showNotification(title, body) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+  const options = {
+    body: String(body || ''),
+    icon: '/favicon.ico',
+    badge: '/favicon.ico',
+    tag: 'apex-ft-rixx-' + Date.now(),
+    renotify: true,
+    vibrate: [200, 100, 200]
+  };
+
+  try {
+    if ('serviceWorker' in navigator) {
+      const reg = await navigator.serviceWorker.ready;
+      if (reg && reg.showNotification) {
+        await reg.showNotification(title, options);
+        return;
+      }
+    }
+  } catch (e) {}
+
+  try {
+    new Notification(title, options);
+  } catch (e) {}
 }
 function playBeep() {
   try {

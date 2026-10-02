@@ -2096,3 +2096,14 @@ body {
   .deploy-card { padding:15px; }
   .deploy-code { min-height:260px; }
 }
+
+/* ===== SAFE TOUCH FIX ===== */
+.hidden {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+button, a, input, textarea, select, label {
+  touch-action: manipulation;
+}
