@@ -17,7 +17,7 @@ const db = getFirestore(app);
 setPersistence(auth, browserLocalPersistence).catch(console.error);
 
 // ⚠️ GANTI INI dengan UID admin lu
-const ADMIN_UIDS = ['ISI_UID_ADMIN_LU_DISINI'];
+const ADMIN_UIDS = ['BM2nil1Qw6W1D9RlbZCMydh4qK53'];
 
 // ===== STATE =====
 let currentUser = null;
