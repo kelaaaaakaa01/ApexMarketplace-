@@ -2,6 +2,9 @@
   "functions": {
     "api/deploy.js": {
       "maxDuration": 30
+    },
+    "api/groq.js": {
+      "maxDuration": 30
     }
   }
 }

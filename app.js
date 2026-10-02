@@ -21,6 +21,9 @@ let currentUser = null;
 let currentUserData = null;
 let currentChatTarget = null;
 let unsubscribeChat = null;
+let unsubscribeTyping = null;
+let typingTimer = null;
+let typingState = false;
 let unsubscribeUsers = null;
 let unsubscribeMyPosts = null;
 let unsubscribeFeed = null;
@@ -307,44 +310,20 @@ async function checkCurrentChatClosed() {
 // ============================================
 // ===== NOTIFIKASI =====
 // ============================================
-async function requestNotificationPermission() {
-  if (!('Notification' in window)) return 'denied';
-
-  try {
-    if (Notification.permission === 'default') {
-      return await Notification.requestPermission();
-    }
-    return Notification.permission;
-  } catch (e) {
-    return 'denied';
+function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
   }
 }
-
-async function showNotification(title, body) {
-  if (!('Notification' in window) || Notification.permission !== 'granted') return;
-
-  const options = {
-    body: String(body || ''),
-    icon: '/favicon.ico',
-    badge: '/favicon.ico',
-    tag: 'apex-ft-rixx-' + Date.now(),
-    renotify: true,
-    vibrate: [200, 100, 200]
-  };
-
-  try {
-    if ('serviceWorker' in navigator) {
-      const reg = await navigator.serviceWorker.ready;
-      if (reg && reg.showNotification) {
-        await reg.showNotification(title, options);
-        return;
-      }
-    }
-  } catch (e) {}
-
-  try {
-    new Notification(title, options);
-  } catch (e) {}
+function showNotification(title, body) {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try {
+      new Notification(title, {
+        body,
+        icon: 'https://via.placeholder.com/64/FFD93D/000?text=A'
+      });
+    } catch (e) {}
+  }
 }
 function playBeep() {
   try {
@@ -868,12 +847,15 @@ function renderChatList() {
       const el = document.createElement('div');
       el.className = 'wa-chat-item';
       el.innerHTML = `
-        <div style="position:relative">${avatarHTML(name, '', u.photoURL)}${isOnline ? '<div class="online-dot"></div>' : ''}</div>
+        <button type="button" class="chat-list-avatar" data-profile-user="${escapeHtml(u.uid)}">${avatarHTML(name, '', u.photoURL)}${isOnline ? '<div class="online-dot"></div>' : ''}</button>
         <div class="wa-chat-info">
           <div class="wa-chat-name">${escapeHtml(name)}</div>
           <div class="wa-chat-preview">${isOnline ? '🟢 Online' : '⚫ Offline'}</div>
         </div>
       `;
+      el.querySelector('[data-profile-user]')?.addEventListener('click', (e) => {
+        e.stopPropagation(); showUserProfile(u.uid);
+      });
       el.addEventListener('click', () => openDM(u.uid, name));
       list.appendChild(el);
     });
@@ -899,7 +881,7 @@ function renderChatList() {
       const u = allUsers[other];
       const name = u?.username || u?.email || c.name || 'User';
       const isOnline = isUserOnline(u);
-      avatar = `<div style="position:relative">${avatarHTML(name, '', u?.photoURL)}${isOnline ? '<div class="online-dot"></div>' : ''}</div>`;
+      avatar = `<button type="button" class="chat-list-avatar" data-profile-user="${escapeHtml(other)}">${avatarHTML(name, '', u?.photoURL)}${isOnline ? '<div class="online-dot"></div>' : ''}</button>`;
       displayName = escapeHtml(name);
     }
 
@@ -921,6 +903,9 @@ function renderChatList() {
         ${c.unread > 0 ? `<div class="wa-badge">${c.unread > 99 ? '99+' : c.unread}</div>` : ''}
       </div>
     `;
+    el.querySelector('[data-profile-user]')?.addEventListener('click', (e) => {
+      e.stopPropagation(); showUserProfile(e.currentTarget.dataset.profileUser);
+    });
     el.addEventListener('click', () => {
       if (isGroup) openGroup(c.id, c.name);
       else {
@@ -1030,6 +1015,9 @@ function showFullChat(name, status, isGroupOrChannel) {
 }
 
 function closeFullChat() {
+  setTyping(false);
+  clearTimeout(typingTimer);
+  stopTypingListener();
   $('fullChat')?.classList.add('hidden');
   $('fcMenuDropdown')?.classList.add('hidden');
   if (unsubscribeChat) { unsubscribeChat(); unsubscribeChat = null; }
@@ -1100,8 +1088,53 @@ $('menuLeave')?.addEventListener('click', async () => {
 // ============================================
 // ===== LOAD MESSAGES =====
 // ============================================
+function stopTypingListener() {
+  if (unsubscribeTyping) { unsubscribeTyping(); unsubscribeTyping = null; }
+  $('fcTypingIndicator')?.classList.add('hidden');
+}
+
+function startTypingListener(chatId) {
+  stopTypingListener();
+  unsubscribeTyping = onSnapshot(doc(db, 'chats', chatId), (snap) => {
+    const data = snap.exists() ? snap.data() : {};
+    const typing = data.typing || {};
+    const activeNames = Object.entries(typing)
+      .filter(([uid, active]) => uid !== currentUser?.uid && active)
+      .map(([uid]) => allUsers[uid]?.username || allUsers[uid]?.email || 'Seseorang');
+    const indicator = $('fcTypingIndicator');
+    if (!indicator) return;
+    if (activeNames.length) {
+      indicator.textContent = activeNames.length === 1
+        ? `${activeNames[0]} sedang mengetik...`
+        : `${activeNames.length} orang sedang mengetik...`;
+      indicator.classList.remove('hidden');
+    } else {
+      indicator.classList.add('hidden');
+    }
+  });
+}
+
+async function setTyping(active) {
+  if (!currentUser || !currentChatTarget) return;
+  if (typingState === active) return;
+  typingState = active;
+  try {
+    await updateDoc(doc(db, 'chats', currentChatTarget.id), {
+      [`typing.${currentUser.uid}`]: active
+    });
+  } catch (e) {}
+}
+
+function handleTypingInput() {
+  if (!currentUser || !currentChatTarget) return;
+  setTyping(true);
+  clearTimeout(typingTimer);
+  typingTimer = setTimeout(() => setTyping(false), 1200);
+}
+
 function loadMessagesFor(chatId) {
   if (unsubscribeChat) unsubscribeChat();
+  startTypingListener(chatId);
   const msgsEl = $('fcMessages');
   if (!msgsEl) return;
   msgsEl.innerHTML = '<p style="text-align:center;opacity:0.6;padding:20px">Memuat...</p>';
@@ -1179,8 +1212,32 @@ function buildMessage(m, msgId) {
     else checkHTML = `<span class="check sent">✓</span>`;
   }
 
-  div.innerHTML = senderLabel + replyHTML + content + `<span class="time">${time}${checkHTML}</span>`;
+  const profileId = m.senderId || '';
+  const profileName = escapeHtml(m.senderName || allUsers[profileId]?.username || 'User');
+  const profileHTML = !isMe && profileId
+    ? `<button type="button" class="msg-profile-link" data-profile-user="${escapeHtml(profileId)}">${profileName}</button>`
+    : '';
+  if (senderLabel) senderLabel = `<div class="msg-sender">${profileHTML}</div>`;
+  const deleteHTML = isMe
+    ? `<button type="button" class="msg-delete-btn" data-delete-message="${escapeHtml(msgId)}" title="Hapus pesan">Hapus</button>`
+    : '';
+
+  div.innerHTML = senderLabel + replyHTML + content + `<span class="time">${time}${checkHTML}</span>${deleteHTML}`;
   div.addEventListener('dblclick', () => setReply(m, msgId));
+  div.querySelector('[data-profile-user]')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showUserProfile(profileId);
+  });
+  div.querySelector('[data-delete-message]')?.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if (!confirm('Hapus pesan ini?')) return;
+    try {
+      await deleteDoc(doc(db, 'chats', currentChatTarget.id, 'messages', msgId));
+      toast('Pesan dihapus', 'success');
+    } catch (err) {
+      toast('Gagal hapus pesan: ' + (err.message || 'error'), 'error');
+    }
+  });
   return div;
 }
 
@@ -1200,6 +1257,11 @@ function clearReply() {
   $('fcReplyBar')?.classList.add('hidden');
 }
 $('fcReplyClose')?.addEventListener('click', clearReply);
+$('fcChatInput')?.addEventListener('input', handleTypingInput);
+$('fcChatInput')?.addEventListener('blur', () => {
+  clearTimeout(typingTimer);
+  setTyping(false);
+});
 
 // ============================================
 // ===== SEND TEXT =====
@@ -1502,7 +1564,14 @@ async function showUserProfile(uid) {
       ${data.bio ? `<p style="font-style:italic;font-size:0.9rem;padding:0 10px;margin-bottom:10px">"${escapeHtml(data.bio)}"</p>` : ''}
       <p style="font-size:0.85rem">📧 ${escapeHtml(data.email||'-')}</p>
       <p style="font-size:0.85rem">${isOnline ? '🟢 Online' : '⚫ Offline'}</p>
+      ${currentUser && uid !== currentUser.uid
+        ? `<button class="btn-pop profile-chat-btn" id="profileChatBtn" style="width:100%;margin-top:12px">💬 CHAT</button>`
+        : ''}
     `;
+    $('profileChatBtn')?.addEventListener('click', () => {
+      modal.classList.add('hidden');
+      openDM(uid, name);
+    });
   } catch (e) { content.innerHTML = '<p>Gagal load profil</p>'; }
 }
 $('closeUserProfile')?.addEventListener('click', () => $('userProfileModal')?.classList.add('hidden'));
@@ -2557,6 +2626,208 @@ $('deployBtn')?.addEventListener('click', async () => {
     btn.disabled = false;
   }
 });
+
+
+// ============================================
+// ===== APEX AI / GROQ =====
+// ============================================
+const AI_HISTORY_KEY = 'apex_ai_history_v1';
+let aiHistory = [];
+let aiConversations = [];
+let aiCurrentId = null;
+
+function loadAIConversations() {
+  try { aiConversations = JSON.parse(localStorage.getItem(AI_HISTORY_KEY) || '[]'); }
+  catch (_) { aiConversations = []; }
+  if (!Array.isArray(aiConversations)) aiConversations = [];
+  aiConversations = aiConversations.filter(x => x && Array.isArray(x.messages));
+}
+
+function saveAIConversations() {
+  try { localStorage.setItem(AI_HISTORY_KEY, JSON.stringify(aiConversations.slice(0, 30))); } catch (_) {}
+}
+
+function ensureAIConversation() {
+  if (aiCurrentId) return;
+  const now = Date.now();
+  const item = { id: String(now), title: 'Chat baru', createdAt: now, updatedAt: now, messages: [] };
+  aiConversations.unshift(item);
+  aiCurrentId = item.id;
+  aiHistory = item.messages;
+  saveAIConversations();
+}
+
+function currentAIConversation() {
+  return aiConversations.find(x => x.id === aiCurrentId) || null;
+}
+
+function renderAIHistory() {
+  const list = $('aiHistoryList');
+  if (!list) return;
+  list.innerHTML = '';
+  if (!aiConversations.length) {
+    list.innerHTML = '<div class="ai-history-empty">Belum ada riwayat chat.</div>';
+    return;
+  }
+  aiConversations.slice().sort((a,b) => b.updatedAt - a.updatedAt).forEach(conv => {
+    const row = document.createElement('div');
+    row.className = 'ai-history-row' + (conv.id === aiCurrentId ? ' active' : '');
+    const main = document.createElement('button');
+    main.type = 'button';
+    main.className = 'ai-history-open';
+    main.textContent = conv.title || 'Chat baru';
+    main.onclick = () => loadAIConversation(conv.id);
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'ai-history-delete';
+    del.textContent = 'Delete';
+    del.title = 'Hapus riwayat ini';
+    del.onclick = () => deleteAIConversation(conv.id);
+    row.append(main, del);
+    list.appendChild(row);
+  });
+}
+
+function renderAIMessages() {
+  const box = $('aiMessages');
+  if (!box) return;
+  box.innerHTML = '';
+  if (!aiHistory.length) {
+    appendAIMessage('assistant', 'Halo, gw APEX AI. Ada yang bisa gw bantu?');
+    return;
+  }
+  aiHistory.forEach((m, index) => appendAIMessage(m.role, m.content, index));
+}
+
+function appendAIMessage(role, text, index = -1) {
+  const box = $('aiMessages');
+  if (!box) return;
+  const item = document.createElement('div');
+  item.className = 'ai-msg ' + (role === 'user' ? 'ai-msg-user' : 'ai-msg-bot');
+  const content = document.createElement('span');
+  content.textContent = text;
+  item.appendChild(content);
+  if (index >= 0) {
+    const del = document.createElement('button');
+    del.className = 'ai-msg-delete';
+    del.type = 'button';
+    del.textContent = '×';
+    del.title = 'Hapus pesan';
+    del.onclick = () => deleteAIMessage(index);
+    item.appendChild(del);
+  }
+  box.appendChild(item);
+  box.scrollTop = box.scrollHeight;
+}
+
+function persistCurrentAI() {
+  const conv = currentAIConversation();
+  if (!conv) return;
+  conv.messages = aiHistory;
+  conv.updatedAt = Date.now();
+  const firstUser = aiHistory.find(m => m.role === 'user');
+  if (firstUser) conv.title = firstUser.content.slice(0, 42) || 'Chat baru';
+  saveAIConversations();
+}
+
+function loadAIConversation(id) {
+  const conv = aiConversations.find(x => x.id === id);
+  if (!conv) return;
+  aiCurrentId = conv.id;
+  aiHistory = Array.isArray(conv.messages) ? conv.messages.slice() : [];
+  renderAIMessages();
+  $('aiHistoryPanel')?.classList.add('hidden');
+  renderAIHistory();
+}
+
+function deleteAIMessage(index) {
+  if (index < 0 || index >= aiHistory.length) return;
+  aiHistory.splice(index, 1);
+  persistCurrentAI();
+  renderAIMessages();
+}
+
+function deleteAIConversation(id) {
+  aiConversations = aiConversations.filter(x => x.id !== id);
+  if (aiCurrentId === id) {
+    aiCurrentId = null;
+    aiHistory = [];
+    ensureAIConversation();
+  }
+  saveAIConversations();
+  renderAIMessages();
+  renderAIHistory();
+}
+
+function clearCurrentAI() {
+  aiHistory = [];
+  const conv = currentAIConversation();
+  if (conv) {
+    conv.messages = [];
+    conv.title = 'Chat baru';
+    conv.updatedAt = Date.now();
+  }
+  saveAIConversations();
+  renderAIMessages();
+}
+
+async function askAPEXAI(text) {
+  const response = await fetch('/api/groq', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: text, history: aiHistory.slice(-12) })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.message || data.error || 'AI gagal merespons.');
+  return data.reply || 'AI tidak memberikan jawaban.';
+}
+
+function openAIChat() {
+  loadAIConversations();
+  ensureAIConversation();
+  $('aiModal')?.classList.remove('hidden');
+  renderAIMessages();
+  renderAIHistory();
+  setTimeout(() => $('aiInput')?.focus(), 80);
+}
+
+$('aiFloatBtn')?.addEventListener('click', openAIChat);
+$('aiClose')?.addEventListener('click', () => $('aiModal')?.classList.add('hidden'));
+$('aiHistoryBtn')?.addEventListener('click', () => {
+  renderAIHistory();
+  $('aiHistoryPanel')?.classList.toggle('hidden');
+});
+$('aiHistoryClose')?.addEventListener('click', () => $('aiHistoryPanel')?.classList.add('hidden'));
+$('aiClearBtn')?.addEventListener('click', () => {
+  if (confirm('Hapus semua pesan di chat APEX AI ini?')) clearCurrentAI();
+});
+
+$('aiForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  ensureAIConversation();
+  const input = $('aiInput');
+  const text = input?.value.trim();
+  if (!text) return;
+  input.value = '';
+  aiHistory.push({ role: 'user', content: text });
+  persistCurrentAI();
+  renderAIMessages();
+  const btn = $('aiSend');
+  if (btn) btn.disabled = true;
+  try {
+    const reply = await askAPEXAI(text);
+    aiHistory.push({ role: 'assistant', content: reply });
+    persistCurrentAI();
+    renderAIMessages();
+  } catch (err) {
+    appendAIMessage('assistant', 'AI error: ' + (err.message || 'Gagal terhubung.'));
+  } finally {
+    if (btn) btn.disabled = false;
+    input?.focus();
+  }
+});
+
+loadAIConversations();
 
 // ============================================
 // ===== INIT =====

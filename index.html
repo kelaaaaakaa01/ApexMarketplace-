@@ -546,6 +546,30 @@
     </div>
   </div>
 
+  <button id="aiFloatBtn" class="ai-float-btn" title="APEX AI">AI</button>
+
+  <div id="aiModal" class="ai-modal hidden">
+    <div class="ai-box">
+      <div class="ai-header">
+        <div><strong>APEX AI</strong><span>Powered by Groq</span></div>
+        <div class="ai-head-actions">
+          <button id="aiHistoryBtn" type="button" title="History">History</button>
+          <button id="aiClearBtn" type="button" title="Hapus chat">Delete</button>
+          <button id="aiClose" type="button" title="Tutup">✕</button>
+        </div>
+      </div>
+      <div id="aiMessages" class="ai-messages"></div>
+      <div id="aiHistoryPanel" class="ai-history-panel hidden">
+        <div class="ai-history-head"><b>Chat History</b><button id="aiHistoryClose" type="button">✕</button></div>
+        <div id="aiHistoryList" class="ai-history-list"></div>
+      </div>
+      <form id="aiForm" class="ai-form">
+        <input id="aiInput" type="text" placeholder="Tanya APEX AI..." autocomplete="off">
+        <button id="aiSend" class="btn-pop" type="submit">➤</button>
+      </form>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
   <script type="module" src="app.js"></script>
 </body>
